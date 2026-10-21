@@ -14,19 +14,22 @@ Free, open source, no server. Your keys never leave your Mac.</p>
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/panel-dark.png">
-    <img src="docs/panel-light.png" width="400" alt="PulseMRR menu bar panel: today's takings, yesterday, 7 days, MRR, a week chart, a table of projects and the latest activity">
+    <img src="docs/panel-light.png" width="400" alt="PulseMRR menu bar panel: today's takings with yesterday, new customers and MRR, failed payments, one row per project with a sparkline and its MRR, and the latest activity">
   </picture>
 </p>
 
 ## What it does
 
-- **A notification for what matters**, each one switchable: new sale, new subscriber, trial started, trial converted, cancellation scheduled, subscription ended, failed payment, refund, dispute, payout, new customer. Money coming in plays a cash register sound.
-- **Every Stripe account in one place.** Add as many as you run, each with its project's logo (taken from your Stripe branding or your website) or an emoji.
-- **Today, yesterday, 7 days and MRR** at a glance, with a bar chart of the week and a table per project.
-- **One currency.** Accounts in dollars and euros add up in the currency you pick, at the day's ECB rate. Hover a total to see the original amounts.
+- **A notification for what matters**, each one switchable: new sale, new subscriber, new customer, trial started, trial converted, cancellation scheduled, subscription ended, failed payment, refund, dispute, payout. Money coming in plays a cash register sound. Notifications can stay on screen until you dismiss them.
+- **Every Stripe account in one place.** Add as many as you run, each with its project's logo (taken from your Stripe branding or your website) or an emoji. Drag to reorder.
+- **Today at a glance:** the day's takings, yesterday, today's new customers and your total MRR, with today's amount and new customers right in the menu bar if you want them.
+- **Failed payments on one line.** Expand it to see who failed and open each one in Stripe.
+- **One row per project:** today's takings, new customers, a 30 day sparkline and its MRR. Hover for the details.
+- **MRR you can trust.** Only active subscriptions count. Past due ones are shown as at risk, trials and scheduled cancellations are kept apart, so a failing card never inflates the number.
+- **One currency.** Accounts in dollars and euros add up in the currency you pick (euro, dollar, pound, Swiss franc, Canadian dollar), at the day's ECB rate.
 - **A daily recap** at the hour you choose: the day's total against yesterday, sales, new subscribers, cancellations, and your best project.
 - **Click a notification** to open the payment, subscription or dispute in your Stripe dashboard.
-- **English and French**, following your Mac's language.
+- **Opens at login**, checks every 15 seconds to 5 minutes, and speaks English and French, following your Mac's language.
 
 ## Install
 
@@ -50,7 +53,7 @@ and leave everything else at None. A secret key (`sk_live_…`) works too, but P
 
 ## Privacy
 
-- **No server.** PulseMRR talks to Stripe's API directly from your Mac, every 30 seconds (you can change it).
+- **No server.** PulseMRR talks to Stripe's API directly from your Mac, every 30 seconds by default.
 - **Read only.** Every call is a `GET`: PulseMRR never creates, changes or deletes anything in Stripe.
 - **Keys stay in your Keychain**, never in a file, never sent anywhere but `api.stripe.com`.
 - **Other requests:** the day's exchange rates from [frankfurter.app](https://frankfurter.app) (ECB data), and your project's favicon from Google's favicon service when your Stripe account has no icon.
