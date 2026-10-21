@@ -50,9 +50,7 @@ else
   codesign --force --sign - "$APP"
 fi
 
-mkdir -p build/dmg && cp -R "$APP" build/dmg/ && ln -s /Applications build/dmg/Applications
-hdiutil create -quiet -volname "PulseMRR" -srcfolder build/dmg -ov -format UDZO build/PulseMRR.dmg
-/bin/rm -rf build/dmg
+./make-dmg.sh
 
 if [[ -n $DEVID && -z $SKIP_NOTARIZE ]]; then
   codesign --force --timestamp --sign "$DEVID" build/PulseMRR.dmg
