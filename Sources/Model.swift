@@ -26,24 +26,26 @@ final class Model: ObservableObject {
     @Published var facts: [UUID: [SubFact]] = [:]
     @Published var revenue: [UUID: [Date: [String: Int]]] = [:]
     @Published var failedInvoices: [UUID: [FailedInvoice]] = [:]
-    /// The projects the dashboard adds up. Empty: all of them.
-    @Published var dashboardSelection: Set<UUID> = [] { didSet { rebuildDashboard() } }
-    /// The one project the dashboard looks at, nil when it shows several or all. Setting it selects only that one.
+    /// The projects left out of the dashboard. Empty: all of them count, and a project added later is ticked.
+    @Published var dashboardExcluded: Set<UUID> = [] { didSet { rebuildDashboard() } }
+    /// The ticked projects, in the accounts' order. Can be empty: then the dashboard asks for one.
+    var dashboardAccounts: [Account] { active.filter { !dashboardExcluded.contains($0.id) } }
+    var dashboardAll: Bool { dashboardAccounts.count == active.count }
+    var dashboardNone: Bool { dashboardAccounts.isEmpty }
+    /// The one project the dashboard looks at, nil when it shows several, all or none. Setting it ticks only that one; nil ticks all.
     var dashboardScope: UUID? {
-        get { dashboardSelection.count == 1 ? dashboardSelection.first : nil }
-        set { dashboardSelection = newValue.map { [$0] } ?? [] }
-    }
-    /// The selected projects, in the accounts' order.
-    var dashboardAccounts: [Account] {
-        let picked = active.filter { dashboardSelection.contains($0.id) }
-        return picked.isEmpty ? active : picked
+        get { dashboardAccounts.count == 1 && active.count > 1 ? dashboardAccounts.first?.id : (active.count == 1 ? active.first?.id : nil) }
+        set { dashboardExcluded = newValue.map { id in Set(active.map(\.id).filter { $0 != id }) } ?? [] }
     }
 
-    /// Ticks or unticks a project in the sidebar. Unticking the last one, or ticking them all, goes back to all.
+    /// Ticks or unticks a project in the sidebar.
     func toggleInDashboard(_ id: UUID) {
-        var s = dashboardSelection.isEmpty ? Set(active.map(\.id)) : dashboardSelection
-        if s.contains(id) { s.remove(id) } else { s.insert(id) }
-        dashboardSelection = (s.isEmpty || s.count == active.count) ? [] : s
+        if dashboardExcluded.contains(id) { dashboardExcluded.remove(id) } else { dashboardExcluded.insert(id) }
+    }
+
+    /// "All projects": ticks everything, or unticks everything when it's all ticked already.
+    func toggleAllInDashboard() {
+        dashboardExcluded = dashboardAll ? Set(active.map(\.id)) : []
     }
     @Published var dashboardMonths = 12 { didSet { rebuildDashboard() } }
     @Published var dashboard = DashboardData()
@@ -598,7 +600,7 @@ final class Model: ObservableObject {
         for f in ["subscriptions", "revenue", "failed"] {
             try? FileManager.default.removeItem(at: Disk.folder.appendingPathComponent("history/\(f)-\(a.id.uuidString).json"))
         }
-        dashboardSelection.remove(a.id)
+        dashboardExcluded.remove(a.id)
     }
 
     /// What macOS allows for PulseMRR's notifications, for the settings and for --notif-status.

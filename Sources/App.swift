@@ -76,7 +76,8 @@ struct PulseMRRApp: App {
                 if let project, m.active.indices.contains(project) { m.dashboardScope = m.active[project].id }
                 // `projects 0,2`: several projects ticked
                 if let j = args.firstIndex(of: "projects"), args.count > j + 1 {
-                    m.dashboardSelection = Set(args[j + 1].split(separator: ",").compactMap { Int($0) }.filter { m.active.indices.contains($0) }.map { m.active[$0].id })
+                    let keep = Set(args[j + 1].split(separator: ",").compactMap { Int($0) }.filter { m.active.indices.contains($0) }.map { m.active[$0].id })
+                    m.dashboardExcluded = Set(m.active.map(\.id)).subtracting(keep)
                 }
                 m.rebuildDashboard()
                 NSApplication.shared.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)

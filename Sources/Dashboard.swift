@@ -62,27 +62,27 @@ struct DashboardView: View {
     }
 }
 
-/// The projects with a tick each: all by default, any mix of them, or one alone with "Only".
+/// The projects with a tick each: all by default, any mix of them, or none.
 struct DashboardSidebar: View {
     @ObservedObject var model: Model
 
     var body: some View {
-        let all = model.dashboardSelection.isEmpty
+        let all = model.dashboardAll, none = model.dashboardNone
         List {
             Section("Overview") {
-                SidebarRow(checked: all, partly: false, onlyButton: false) {
+                SidebarRow(checked: all, partly: !all && !none, onlyButton: false) {
                     Image(systemName: "square.grid.2x2").frame(width: 18).foregroundStyle(Palette.brand)
                 } label: {
                     Text("All projects")
                 } amount: {
                     Text(Fmt.money(model.active.reduce(0) { $0 + model.mrrNow($1) }, model)).foregroundStyle(.secondary).monospacedDigit()
                 } toggle: {
-                    model.dashboardSelection = []
+                    model.toggleAllInDashboard()
                 } only: {}
             }
             Section("Projects") {
                 ForEach(model.active) { a in
-                    SidebarRow(checked: all || model.dashboardSelection.contains(a.id), partly: false, onlyButton: model.active.count > 1) {
+                    SidebarRow(checked: !model.dashboardExcluded.contains(a.id), partly: false, onlyButton: model.active.count > 1) {
                         AccountIcon(model: model, account: a, size: 18)
                     } label: {
                         Text(a.name).lineLimit(1)
@@ -113,27 +113,18 @@ struct SidebarRow<Icon: View, Label: View, Amount: View>: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            Image(systemName: checked ? "checkmark.square.fill" : "square")
+            Image(systemName: checked ? "checkmark.square.fill" : partly ? "minus.square.fill" : "square")
                 .font(.system(size: 14))
-                .foregroundStyle(checked ? Palette.brand : Color.secondary.opacity(0.6))
+                .foregroundStyle(checked || partly ? Palette.brand : Color.secondary.opacity(0.6))
             icon
             label
             Spacer(minLength: 4)
-            if hover && onlyButton {
-                Button("Only", action: only)
-                    .buttonStyle(.plain)
-                    .font(.caption.weight(.medium)).foregroundStyle(Palette.brand)
-                    .padding(.horizontal, 6).padding(.vertical, 2)
-                    .background(Palette.brand.opacity(0.1), in: Capsule())
-                    .help(String(localized: "Show only this project"))
-            } else {
-                amount
-            }
+            amount
         }
         .contentShape(Rectangle())
         .onTapGesture(perform: toggle)
         .onHover { hover = $0 }
-        .opacity(checked ? 1 : 0.55)
+        .opacity(checked || partly ? 1 : 0.55)
     }
 }
 
@@ -144,14 +135,29 @@ struct DashboardContent: View {
     private var d: DashboardData { model.dashboard }
     private var project: Account? { model.dashboardScope.flatMap { id in model.active.first { $0.id == id } } }
     /// Several projects ticked, but not all of them.
-    private var some: [Account]? { !model.dashboardSelection.isEmpty && project == nil ? model.dashboardAccounts : nil }
+    private var some: [Account]? { !model.dashboardAll && !model.dashboardNone && project == nil ? model.dashboardAccounts : nil }
 
     var body: some View {
+        if model.dashboardNone && !model.active.isEmpty {
+            VStack(spacing: 10) {
+                Image(systemName: "checklist.unchecked").font(.system(size: 34, weight: .light)).foregroundStyle(Palette.brand)
+                Text("Tick at least one project").font(.title3.weight(.semibold))
+                Text("Pick the projects to add up in the sidebar, or tick All projects.").foregroundStyle(.secondary)
+                Button("Tick all projects") { model.dashboardExcluded = [] }
+                    .buttonStyle(.borderedProminent).tint(Palette.brand).padding(.top, 4)
+            }
+            .frame(maxWidth: .infinity, minHeight: 420)
+        } else {
+            filled
+        }
+    }
+
+    private var filled: some View {
         VStack(alignment: .leading, spacing: 18) {
             header
             KpiGrid(model: model)
             // The goal is about the whole business
-            if model.dashboardSelection.isEmpty { GoalCard(model: model) }
+            if model.dashboardAll { GoalCard(model: model) }
             ProjectionSection(model: model)
             MrrChartCard(model: model)
             ChurnCard(model: model)

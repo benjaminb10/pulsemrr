@@ -267,3 +267,6 @@
 "Customers lost that day (%lld)" = "Clients perdus ce jour-là (%lld)";
 "Lost that day" = "Perdus ce jour-là";
 "Paying 30 days earlier" = "Payants 30 jours avant";
+"Tick at least one project" = "Cochez au moins un projet";
+"Pick the projects to add up in the sidebar, or tick All projects." = "Choisissez dans la barre latérale les projets à additionner, ou cochez Tous les projets.";
+"Tick all projects" = "Cocher tous les projets";
