@@ -57,6 +57,38 @@ struct PulseMRRApp: App {
             }
             exit(0)
         }
+        // `PulseMRR --dashboard-snapshot out.png [dark] [demo] [project N]`: the dashboard window's content as an image,
+        // with made-up projects (demo) or live data, for the README and for checks.
+        if let i = args.firstIndex(of: "--dashboard-snapshot"), args.count > i + 1 {
+            let out = URL(fileURLWithPath: args[i + 1])
+            let dark = args.contains("dark"), demo = args.contains("demo")
+            let project = args.firstIndex(of: "project").flatMap { args.count > $0 + 1 ? Int(args[$0 + 1]) : nil }
+            let sem = DispatchSemaphore(value: 0)
+            Task { @MainActor in
+                if demo { Money.locale = Locale(identifier: "en_US") }
+                let m = demo ? Model.demo() : Model()
+                if !demo { await m.refreshStats(); await m.loadDashboard() }
+                if let project, m.active.indices.contains(project) { m.dashboardScope = m.active[project].id }
+                m.rebuildDashboard()
+                NSApplication.shared.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
+                let view = DashboardContent(model: m)
+                    .padding(28).frame(width: 1180)
+                    .background(Palette.canvas)
+                    .environment(\.isSnapshot, true)
+                    .environment(\.locale, Money.locale)
+                    .environment(\.colorScheme, dark ? .dark : .light)
+                let r = ImageRenderer(content: view)
+                r.scale = 2
+                if let img = r.nsImage, let tiff = img.tiffRepresentation,
+                   let png = NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:]) {
+                    try? png.write(to: out)
+                    print("dashboard snapshot \(out.path)")
+                }
+                sem.signal()
+            }
+            while sem.wait(timeout: .now()) == .timedOut { RunLoop.main.run(until: Date().addingTimeInterval(0.05)) }
+            exit(0)
+        }
         // `PulseMRR --snapshot out.png`: draws the menu panel to an image, with live data (for docs and checks).
         if let i = args.firstIndex(of: "--snapshot"), args.count > i + 1 {
             let out = URL(fileURLWithPath: args[i + 1])
@@ -127,22 +159,40 @@ struct PulseMRRApp: App {
             MenuPanel(model: model)
                 .task { model.start() }
         } label: {
-            HStack(spacing: 3) {
-                Image(systemName: "dollarsign.circle.fill")
-                if !model.menuBarTitle.isEmpty { Text(model.menuBarTitle).monospacedDigit() }
-                // New customers today, trials included
-                if model.prefs.showSignupsInMenuBar, !model.accounts.isEmpty, model.newCustomers(0) > 0 {
-                    Image(systemName: "person.fill")
-                    Text("\(model.newCustomers(0))").monospacedDigit()
-                }
-            }
-            .task { model.start() }
+            MenuBarLabel(model: model)
         }
         .menuBarExtraStyle(.window)
+
+        Window("PulseMRR", id: "dashboard") {
+            DashboardView(model: model)
+        }
+        .defaultSize(width: 1240, height: 880)
 
         Window("PulseMRR Settings", id: "settings") {
             SettingsView(model: model)
         }
         .windowResizability(.contentSize)
+    }
+}
+
+/// The menu bar item: the icon, today's amount and today's new customers. `--dashboard` at launch opens the dashboard.
+struct MenuBarLabel: View {
+    @ObservedObject var model: Model
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some View {
+        HStack(spacing: 3) {
+            Image(systemName: "dollarsign.circle.fill")
+            if !model.menuBarTitle.isEmpty { Text(model.menuBarTitle).monospacedDigit() }
+            // New customers today, trials included
+            if model.prefs.showSignupsInMenuBar, !model.accounts.isEmpty, model.newCustomers(0) > 0 {
+                Image(systemName: "person.fill")
+                Text("\(model.newCustomers(0))").monospacedDigit()
+            }
+        }
+        .task {
+            model.start()
+            if CommandLine.arguments.contains("--dashboard") { openWindow(id: "dashboard") }
+        }
     }
 }

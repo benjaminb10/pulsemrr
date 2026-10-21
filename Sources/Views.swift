@@ -27,6 +27,8 @@ struct MenuPanel: View {
                     ForEach(Array(model.active.enumerated()), id: \.element.id) { i, a in
                         if i > 0 { Hairline().padding(.leading, 52) }
                         ProjectRow(model: model, account: a)
+                            .contentShape(Rectangle())
+                            .onTapGesture { openDashboard(a.id) }
                     }
                 }
                 Hairline()
@@ -73,6 +75,15 @@ struct MenuPanel: View {
             if isSnapshot { Text("Checked") + Text(" ") + Text("4 s") }
             else if let t = model.lastPoll { Text("Checked") + Text(" ") + Text(t, style: .relative) }
             Spacer()
+            Button { openDashboard(nil) } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "chart.xyaxis.line")
+                    Text("Dashboard")
+                }
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .help("Open the dashboard: MRR over time, churn, best customers")
             if !model.notificationsAllowed {
                 Image(systemName: "bell.slash").foregroundStyle(.orange).help("Notifications are off: System Settings › Notifications › PulseMRR")
             }
@@ -84,6 +95,12 @@ struct MenuPanel: View {
 
     private func openSettings() {
         openWindow(id: "settings")
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    private func openDashboard(_ project: UUID?) {
+        model.dashboardScope = project
+        openWindow(id: "dashboard")
         NSApp.activate(ignoringOtherApps: true)
     }
 }

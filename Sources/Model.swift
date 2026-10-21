@@ -22,6 +22,19 @@ final class Model: ObservableObject {
     @Published var notificationsAllowed = true
     @Published var logos: [UUID: NSImage] = [:]
 
+    // The dashboard window
+    @Published var facts: [UUID: [SubFact]] = [:]
+    @Published var revenue: [UUID: [Date: [String: Int]]] = [:]
+    @Published var failedInvoices: [UUID: [FailedInvoice]] = [:]
+    /// Nil: all projects.
+    @Published var dashboardScope: UUID? { didSet { rebuildDashboard() } }
+    @Published var dashboardMonths = 12 { didSet { rebuildDashboard() } }
+    @Published var dashboard = DashboardData()
+    @Published var dashboardLoading = false
+    @Published var dashboardUpdated: Date?
+    var dashboardOpen = false
+    private var revenueFetched: [UUID: Date] = [:]
+
     /// False for the demo: nothing is read from or written to disk, nothing is fetched.
     var persist = true
     private var cursors: [String: Cursor] = Disk.read("cursors.json", as: [String: Cursor].self) ?? [:]
@@ -263,7 +276,9 @@ final class Model: ObservableObject {
             do {
                 daily[a.id] = try await c.daily(days: 30)
                 signups[a.id] = try await c.newCustomers(days: 2)
-                let m = try await c.mrr()
+                let (m, f) = try await c.mrrAndHistory()
+                facts[a.id] = f
+                if persist { Disk.write(f, "history/subscriptions-\(a.id.uuidString).json") }
                 mrr[a.id] = m.real
                 mrrDetail[a.id] = m
                 subscribers[a.id] = m.activeCount
@@ -272,6 +287,67 @@ final class Model: ObservableObject {
                 errors[a.id] = error.localizedDescription
             }
         }
+        if dashboardOpen { rebuildDashboard() }
+    }
+
+    // MARK: dashboard
+
+    /// Shows what's on disk at once, then asks Stripe for what's missing or stale: the subscriptions when never read,
+    /// a year of takings the first time (then the last days only), and the failed invoices of the last 90 days.
+    func loadDashboard(force: Bool = false) async {
+        guard persist else { rebuildDashboard(); return }
+        guard !dashboardLoading else { return }
+        dashboardLoading = true
+        defer { dashboardLoading = false }
+        for a in active {
+            let id = a.id.uuidString
+            if facts[a.id] == nil { facts[a.id] = Disk.read("history/subscriptions-\(id).json", as: [SubFact].self) }
+            if revenue[a.id] == nil, let r = Disk.read("history/revenue-\(id).json", as: RevenueCache.self) {
+                revenue[a.id] = r.days; revenueFetched[a.id] = r.fetched
+            }
+            if failedInvoices[a.id] == nil { failedInvoices[a.id] = Disk.read("history/failed-\(id).json", as: [FailedInvoice].self) }
+        }
+        rebuildDashboard()
+        await refreshRates()
+        for a in active {
+            guard let c = client(a) else { continue }
+            let id = a.id.uuidString
+            do {
+                if force || facts[a.id] == nil {
+                    let (m, f) = try await c.mrrAndHistory()
+                    facts[a.id] = f; mrr[a.id] = m.real; mrrDetail[a.id] = m; subscribers[a.id] = m.activeCount
+                    Disk.write(f, "history/subscriptions-\(id).json")
+                }
+                let fetched = revenueFetched[a.id]
+                if force || fetched == nil || Date().timeIntervalSince(fetched!) > 600 {
+                    // A full year once, then only the days since the last read (and a few before, for late refunds)
+                    let cached = fetched == nil ? nil : revenue[a.id]
+                    let days = cached == nil ? 366 : min(366, Int(Date().timeIntervalSince(fetched!) / 86400) + 8)
+                    let fresh = try await c.daily(days: days, max: 200_000)
+                    let cut = day(days - 1)
+                    var merged = (cached ?? [:]).filter { $0.key < cut && $0.key >= day(400) }
+                    for (k, v) in fresh { merged[k] = v }
+                    revenue[a.id] = merged
+                    revenueFetched[a.id] = Date()
+                    Disk.write(RevenueCache(fetched: Date(), days: merged), "history/revenue-\(id).json")
+                    // A restricted key without Invoices read access still gets the rest of the dashboard
+                    let failed = (try? await c.failedInvoices(days: 90)) ?? []
+                    failedInvoices[a.id] = failed
+                    Disk.write(failed, "history/failed-\(id).json")
+                }
+                errors[a.id] = nil
+            } catch {
+                errors[a.id] = error.localizedDescription
+            }
+            rebuildDashboard()
+        }
+        dashboardUpdated = Date()
+    }
+
+    func rebuildDashboard() {
+        let scope = dashboardScope.flatMap { id in active.first { $0.id == id } }
+        dashboard = Analytics.build(accounts: scope.map { [$0] } ?? active, all: active, facts: facts, revenue: revenue,
+                                    failed: failedInvoices, months: dashboardMonths, convert: convert)
     }
 
     /// ECB reference rates (frankfurter.app, free, no key), refreshed every 6 hours.
@@ -480,6 +556,11 @@ final class Model: ObservableObject {
         signups[a.id] = nil
         mrr[a.id] = nil
         mrrDetail[a.id] = nil
+        facts[a.id] = nil; revenue[a.id] = nil; failedInvoices[a.id] = nil
+        for f in ["subscriptions", "revenue", "failed"] {
+            try? FileManager.default.removeItem(at: Disk.folder.appendingPathComponent("history/\(f)-\(a.id.uuidString).json"))
+        }
+        if dashboardScope == a.id { dashboardScope = nil }
     }
 
     /// What macOS allows for PulseMRR's notifications, for the settings and for --notif-status.

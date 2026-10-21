@@ -93,10 +93,10 @@ struct StripeClient {
     }
 
     /// Money taken per local day over the last `days` days (today included), per currency, refunds taken off.
-    func daily(days: Int) async throws -> [Date: [String: Int]] {
+    func daily(days: Int, max: Int = 10000) async throws -> [Date: [String: Int]] {
         let cal = Calendar.current
         let start = cal.date(byAdding: .day, value: -(days - 1), to: cal.startOfDay(for: Date()))!
-        let charges = try await list("charges", [("created[gte]", String(Int(start.timeIntervalSince1970)))], max: 10000)
+        let charges = try await list("charges", [("created[gte]", String(Int(start.timeIntervalSince1970)))], max: max)
         var out: [Date: [String: Int]] = [:]
         for c in charges where (c["paid"] as? Bool) == true && (c["status"] as? String) == "succeeded" {
             let day = cal.startOfDay(for: Date(timeIntervalSince1970: TimeInterval(c["created"] as? Int ?? 0)))
@@ -123,8 +123,11 @@ struct StripeClient {
     /// real = active subscriptions only; at risk = past_due (payment failed, Stripe still retrying);
     /// trials = trialing and not set to cancel; conversion = paying share of ended trials, one per customer;
     /// projected = real + trials x conversion. Deleted customers are test fixtures and never count.
-    func mrr() async throws -> MrrSnapshot {
-        let subs = try await list("subscriptions", [("status", "all"), ("expand[]", "data.customer")], max: 10000)
+    func mrr() async throws -> MrrSnapshot { try await mrrAndHistory().0 }
+
+    /// The MRR snapshot, and every subscription's paying period for the dashboard, from one read of the list.
+    func mrrAndHistory() async throws -> (MrrSnapshot, [SubFact]) {
+        let subs = try await list("subscriptions", [("status", "all"), ("expand[]", "data.customer")], max: 20000)
         let now = Int(Date().timeIntervalSince1970)
         func isTest(_ s: [String: Any]) -> Bool { (s["customer"] as? [String: Any])?["deleted"] as? Bool == true }
         let real = subs.filter { ($0["status"] as? String) == "active" && !isTest($0) }
@@ -159,11 +162,16 @@ struct StripeClient {
             else { snap.trialsCancelled += 1 }
         }
         snap.trialsEnded = byCustomer.count
-        return snap
+        return (snap, subs.compactMap(StripeClient.fact))
     }
 
     /// Adds one subscription's monthly equivalent (list price, yearly / 12, weekly x 52 / 12) to a per-currency sum.
     private func add(_ sums: inout [String: Int], _ s: [String: Any]) {
+        for (cur, v) in Self.monthlyValue(s) { sums[cur, default: 0] += v }
+    }
+
+    static func monthlyValue(_ s: [String: Any]) -> [String: Int] {
+        var sums: [String: Int] = [:]
         let items = (s["items"] as? [String: Any])?["data"] as? [[String: Any]] ?? []
         for item in items {
             guard let price = item["price"] as? [String: Any], let recurring = price["recurring"] as? [String: Any],
@@ -180,6 +188,7 @@ struct StripeClient {
             let cur = price["currency"] as? String ?? (s["currency"] as? String ?? "eur")
             sums[cur, default: 0] += Int((Double(amount * qty) * perMonth).rounded())
         }
+        return sums
     }
 }
 

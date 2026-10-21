@@ -63,7 +63,75 @@ extension Model {
             act(.paymentFailed, 2, 420, 1200, "max@example.com"),
         ]
         m.lastPoll = now.addingTimeInterval(-4)
+        demoHistory(m, accounts, prices: [[2900, 4900, 9900], [3900], [1200, 2400], [4900, 19900]],
+                    signupsPerWeek: [7, 3, 4, 1.4], churn: [0.035, 0.06, 0.05, 0.02], trials: [true, false, true, false])
         return m
+    }
+
+    /// 18 months of made-up subscribers per project, growing, paying and leaving, with their payments and failed invoices.
+    private static func demoHistory(_ m: Model, _ accounts: [Account], prices: [[Int]], signupsPerWeek: [Double], churn: [Double], trials: [Bool]) {
+        var seed: UInt64 = 42
+        func rand() -> Double { seed = seed &* 6364136223846793005 &+ 1442695040888963407; return Double(seed >> 11) / Double(1 << 53) }
+        let day: TimeInterval = 86400
+        let now = Date()
+        let names = ["Ada", "Grace", "Linus", "Margaret", "Alan", "Hedy", "Dennis", "Barbara", "Ken", "Frances", "Tim", "Radia",
+                     "Guido", "Anita", "Brendan", "Katherine", "Bjarne", "Sophie", "Yukihiro", "Lynn"]
+        let last = ["Lovelace", "Hopper", "Torvalds", "Hamilton", "Turing", "Lamarr", "Ritchie", "Liskov", "Thompson", "Allen",
+                    "Berners-Lee", "Perlman", "van Rossum", "Borg", "Eich", "Johnson", "Stroustrup", "Wilson", "Matsumoto", "Conway"]
+        for (ai, a) in accounts.enumerated() {
+            var facts: [SubFact] = []
+            var revenue: [Date: [String: Int]] = [:]
+            var failed: [FailedInvoice] = []
+            for week in 0..<78 {
+                // Sign-ups grow over time, from a third of today's pace 18 months ago
+                let rate = signupsPerWeek[ai] * (0.35 + 0.65 * Double(week) / 78)
+                var n = Int(rate); if rand() < rate - Double(n) { n += 1 }
+                for _ in 0..<n {
+                    let created = now.addingTimeInterval(-Double(78 - week) * 7 * day + rand() * 7 * day)
+                    let price = prices[ai][Int(rand() * Double(prices[ai].count))]
+                    let trialEnd: Date? = trials[ai] ? created.addingTimeInterval(14 * day) : nil
+                    if trials[ai] && rand() > 0.42 {
+                        // Trial that never paid
+                        facts.append(SubFact(id: "sub_\(facts.count)", customer: "cus_\(ai)_\(facts.count)", who: nil, currency: "usd", monthly: price,
+                                             start: trialEnd!, end: trialEnd, trialEnd: trialEnd, status: "canceled"))
+                        continue
+                    }
+                    let start = trialEnd ?? created
+                    guard start < now else {
+                        facts.append(SubFact(id: "sub_\(facts.count)", customer: "cus_\(ai)_\(facts.count)", who: nil, currency: "usd", monthly: price,
+                                             start: start, end: nil, trialEnd: trialEnd, status: "trialing"))
+                        continue
+                    }
+                    // Months paid before leaving, from the monthly churn rate
+                    var months = 1
+                    while rand() > churn[ai] && months < 40 { months += 1 }
+                    let endAt = Calendar.current.date(byAdding: .month, value: months, to: start)!
+                    let end: Date? = endAt < now ? endAt : nil
+                    let who = names[Int(rand() * 20)] + " " + last[Int(rand() * 20)]
+                    facts.append(SubFact(id: "sub_\(facts.count)", customer: "cus_\(ai)_\(facts.count)", who: who, currency: "usd", monthly: price,
+                                         start: start, end: end, trialEnd: trialEnd, status: end == nil ? "active" : "canceled"))
+                    var t = start
+                    while t < (end ?? now) {
+                        let d = Calendar.current.startOfDay(for: t)
+                        revenue[d, default: [:]]["usd", default: 0] += price
+                        if t > now.addingTimeInterval(-90 * day), rand() < 0.03 {
+                            let state: FailedInvoice.State = rand() < 0.6 ? .recovered : (rand() < 0.5 ? .lost : .retrying)
+                            failed.append(FailedInvoice(id: "in_demo\(failed.count)\(ai)", who: who, amount: price, currency: "usd", created: t, state: state, live: true))
+                        }
+                        t = Calendar.current.date(byAdding: .month, value: 1, to: t)!
+                    }
+                }
+            }
+            m.facts[a.id] = facts
+            m.revenue[a.id] = revenue
+            m.failedInvoices[a.id] = failed
+            // The panel shows the same MRR as the dashboard
+            let mrr = facts.filter { $0.pays(at: now) }.reduce(0) { $0 + $1.monthly }
+            m.mrr[a.id] = ["usd": mrr]
+            m.mrrDetail[a.id]?.real = ["usd": mrr]
+        }
+        m.prefs.goal = 25000
+        m.dashboardUpdated = now
     }
 
     private static func letterIcon(_ letter: String, _ color: NSColor) -> NSImage {

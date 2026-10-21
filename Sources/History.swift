@@ -1,0 +1,252 @@
+// The dashboard's data and maths. Three things come from Stripe: every subscription's paying period (from the list
+// the menu already reads every 5 minutes), a year of takings per day, and the last 90 days of failed invoices.
+// Everything else (MRR over time, where it comes from, churn, lifetime value) is computed on the Mac from those.
+import Foundation
+
+/// One subscription, reduced to what the history needs: whose, how much a month, and when it was paying.
+struct SubFact: Codable, Hashable {
+    let id: String
+    let customer: String
+    let who: String?
+    /// The customer's email: one person with two Stripe customers counts once.
+    var email: String? = nil
+    let currency: String
+    /// Monthly equivalent of the list price, minor units (same rule as the menu's MRR).
+    let monthly: Int
+    /// When it started paying: the end of the trial, if there was one.
+    let start: Date
+    /// When it stopped paying: ended, or its renewal failed. Nil while it pays.
+    let end: Date?
+    let trialEnd: Date?
+    let status: String
+
+    func pays(at t: Date) -> Bool { start <= t && (end.map { t < $0 } ?? true) }
+    /// Paid for at least a day: a trial cancelled before its end never did.
+    var paidOnce: Bool { end.map { $0.timeIntervalSince(start) > 86400 } ?? (status != "trialing") }
+}
+
+/// A failed invoice of the last 90 days and how it ended up.
+struct FailedInvoice: Codable, Identifiable, Hashable {
+    enum State: String, Codable { case retrying, recovered, lost }
+    let id: String
+    let who: String?
+    let amount: Int
+    let currency: String
+    let created: Date
+    let state: State
+    let live: Bool
+
+    var url: URL { URL(string: (live ? "https://dashboard.stripe.com/" : "https://dashboard.stripe.com/test/") + "invoices/" + id)! }
+}
+
+/// A year of takings per day, kept on disk so the dashboard only asks Stripe for the last few days.
+struct RevenueCache: Codable {
+    var fetched: Date
+    var days: [Date: [String: Int]]
+}
+
+extension StripeClient {
+    /// One subscription as a SubFact. Nil for test customers, free plans and subscriptions that never started.
+    static func fact(_ s: [String: Any]) -> SubFact? {
+        let status = s["status"] as? String ?? ""
+        guard !["incomplete", "incomplete_expired"].contains(status) else { return nil }
+        let cus = s["customer"] as? [String: Any]
+        guard cus?["deleted"] as? Bool != true else { return nil }
+        guard let top = monthlyValue(s).max(by: { $0.value < $1.value }), top.value > 0 else { return nil }
+        func date(_ v: Any?) -> Date? { (v as? Int).map { Date(timeIntervalSince1970: TimeInterval($0)) } }
+        let items = (s["items"] as? [String: Any])?["data"] as? [[String: Any]] ?? []
+        // Newer API versions moved the billing period onto the items
+        let periodStart = date(s["current_period_start"]) ?? date(items.first?["current_period_start"])
+        let trialEnd = date(s["trial_end"])
+        let started = date(s["start_date"]) ?? date(s["created"]) ?? Date()
+        let start = max(started, trialEnd ?? started)
+        let end: Date?
+        switch status {
+        case "active", "trialing": end = nil
+        case "past_due", "unpaid", "paused": end = periodStart ?? start
+        default: end = date(s["ended_at"]) ?? date(s["canceled_at"]) ?? start
+        }
+        return SubFact(id: s["id"] as? String ?? "", customer: cus?["id"] as? String ?? (s["customer"] as? String ?? ""),
+                       who: person(name: cus?["name"] as? String, email: cus?["email"] as? String),
+                       email: (cus?["email"] as? String)?.lowercased().trimmingCharacters(in: .whitespaces),
+                       currency: top.key, monthly: top.value, start: start, end: end, trialEnd: trialEnd, status: status)
+    }
+
+    /// Invoices of the last `days` days that failed at least once: still retrying, paid in the end, or given up.
+    func failedInvoices(days: Int) async throws -> [FailedInvoice] {
+        let from = Int(Date().addingTimeInterval(-Double(days) * 86400).timeIntervalSince1970)
+        let invoices = try await list("invoices", [("created[gte]", String(from))], max: 20000)
+        var out: [FailedInvoice] = []
+        for i in invoices {
+            let attempts = i["attempt_count"] as? Int ?? 0
+            let status = i["status"] as? String ?? ""
+            let paid = i["amount_paid"] as? Int ?? 0
+            let state: FailedInvoice.State
+            switch status {
+            case "paid" where attempts > 1: state = .recovered
+            case "open" where attempts >= 1: state = i["next_payment_attempt"] is Int ? .retrying : .lost
+            case "uncollectible": state = .lost
+            case "void" where attempts >= 1 && paid == 0: state = .lost
+            default: continue
+            }
+            out.append(FailedInvoice(id: i["id"] as? String ?? "",
+                                     who: StripeClient.person(name: i["customer_name"] as? String, email: i["customer_email"] as? String),
+                                     amount: state == .recovered ? paid : (i["amount_due"] as? Int ?? 0),
+                                     currency: i["currency"] as? String ?? "eur",
+                                     created: Date(timeIntervalSince1970: TimeInterval(i["created"] as? Int ?? 0)),
+                                     state: state, live: i["livemode"] as? Bool ?? true))
+        }
+        return out.sorted { $0.created > $1.created }
+    }
+}
+
+/// What moved the MRR between two dates, customer by customer, in the display currency.
+struct Movement {
+    var new = 0, expansion = 0, reactivation = 0, contraction = 0, churn = 0
+    var newCustomers = 0, churnedCustomers = 0
+    var startMrr = 0, endMrr = 0, startCustomers = 0, endCustomers = 0
+    var net: Int { new + expansion + reactivation - contraction - churn }
+}
+
+/// Everything the dashboard window shows, computed once per refresh, in the display currency.
+struct DashboardData {
+    struct Point: Identifiable { let date: Date; let account: UUID; let value: Int; var id: String { account.uuidString + "\(date.timeIntervalSince1970)" } }
+    struct Month: Identifiable { let month: Date; let move: Movement; var id: Date { month } }
+    struct Person: Identifiable { let id: String; let account: UUID; let who: String; let mrr: Int; let date: Date }
+    struct Project: Identifiable { let id: UUID; let mrr: Int; let growth: Double?; let customers: Int; let churn: Double?; let arpu: Int }
+    struct Failed: Identifiable { let account: UUID; let invoice: FailedInvoice; let amount: Int; var id: String { invoice.id } }
+
+    var series: [Point] = []
+    var months: [Month] = []
+    var last30 = Movement()
+    var last90 = Movement()
+    var trialsEnded = 0
+    var trialConversion: Double?
+    var revenue: [Date: [UUID: Int]] = [:]
+    var failed: [Failed] = []
+    var top: [Person] = []
+    var churned: [Person] = []
+    var projects: [Project] = []
+    /// Average net new MRR a month over the last 3 full months.
+    var pace: Int?
+
+    var mrr: Int { last30.endMrr }
+    var customers: Int { last30.endCustomers }
+    var arpu: Int { customers > 0 ? mrr / customers : 0 }
+    var growth: Double? { last30.startMrr > 0 ? Double(last30.endMrr - last30.startMrr) / Double(last30.startMrr) : nil }
+    var customerChurn: Double? { last30.startCustomers > 0 ? Double(last30.churnedCustomers) / Double(last30.startCustomers) : nil }
+    var revenueChurn: Double? { last30.startMrr > 0 ? Double(last30.churn + last30.contraction) / Double(last30.startMrr) : nil }
+    /// ARPU divided by the monthly customer churn of the last 90 days.
+    var ltv: Int? {
+        guard last90.startCustomers > 0, last90.churnedCustomers > 0 else { return nil }
+        let monthly = Double(last90.churnedCustomers) / Double(last90.startCustomers) / 3
+        return Int(Double(arpu) / monthly)
+    }
+}
+
+enum Analytics {
+    private struct Item { let account: UUID; let key: String; let monthly: Int; let fact: SubFact }
+
+    /// `accounts` is what the window looks at (one project or all); `all` feeds the per-project table.
+    static func build(accounts: [Account], all: [Account], facts: [UUID: [SubFact]], revenue: [UUID: [Date: [String: Int]]],
+                      failed: [UUID: [FailedInvoice]], months: Int, convert: (Int, String) -> Int, now: Date = Date()) -> DashboardData {
+        func items(_ accs: [Account]) -> [Item] {
+            accs.flatMap { a in (facts[a.id] ?? []).map { Item(account: a.id, key: a.id.uuidString + "|" + (($0.email?.isEmpty == false ? $0.email : nil) ?? $0.customer), monthly: convert($0.monthly, $0.currency), fact: $0) } }
+        }
+        let list = items(accounts)
+        let cal = Calendar.current
+        let day: TimeInterval = 86400
+        var d = DashboardData()
+
+        // The MRR curve: one point a week, per project
+        let weeks = Int((Double(months) * 30.44 / 7).rounded())
+        for w in stride(from: weeks, through: 0, by: -1) {
+            let t = now.addingTimeInterval(-Double(w) * 7 * day)
+            var per: [UUID: Int] = [:]
+            for it in list where it.fact.pays(at: t) { per[it.account, default: 0] += it.monthly }
+            for a in accounts { d.series.append(.init(date: t, account: a.id, value: per[a.id] ?? 0)) }
+        }
+
+        // Where the MRR came from and went, calendar month by calendar month (this one so far)
+        let thisMonth = cal.date(from: cal.dateComponents([.year, .month], from: now))!
+        for m in stride(from: months - 1, through: 0, by: -1) {
+            let a = cal.date(byAdding: .month, value: -m, to: thisMonth)!
+            let b = m == 0 ? now : cal.date(byAdding: .month, value: 1, to: a)!
+            d.months.append(.init(month: a, move: movement(list, a, b)))
+        }
+        d.last30 = movement(list, now.addingTimeInterval(-30 * day), now)
+        d.last90 = movement(list, now.addingTimeInterval(-90 * day), now)
+        let full = d.months.dropLast().suffix(3)
+        if !full.isEmpty { d.pace = full.reduce(0) { $0 + $1.move.net } / full.count }
+
+        // Trials that ended in the last 90 days, and how many of them paid
+        let ended = list.filter { it in it.fact.trialEnd.map { $0 > now.addingTimeInterval(-90 * day) && $0 <= now } ?? false }
+        d.trialsEnded = ended.count
+        if !ended.isEmpty { d.trialConversion = Double(ended.filter(\.fact.paidOnce).count) / Double(ended.count) }
+
+        for a in accounts {
+            for (date, sums) in revenue[a.id] ?? [:] {
+                let v = sums.reduce(0) { $0 + convert($1.value, $1.key) }
+                if v != 0 { d.revenue[date, default: [:]][a.id] = v }
+            }
+            let cur = (failed[a.id] ?? []).map { DashboardData.Failed(account: a.id, invoice: $0, amount: convert($0.amount, $0.currency)) }
+            d.failed += cur
+        }
+        d.failed.sort { $0.invoice.created > $1.invoice.created }
+
+        // Best customers now, and the ones who left in the last 90 days
+        let byKey = Dictionary(grouping: list, by: \.key)
+        let nowValues = values(list, now)
+        for (key, value) in nowValues {
+            guard let its = byKey[key], let first = its.first else { continue }
+            let since = its.filter(\.fact.paidOnce).map(\.fact.start).min() ?? first.fact.start
+            d.top.append(.init(id: key, account: first.account, who: its.compactMap(\.fact.who).first ?? first.fact.customer, mrr: value, date: since))
+        }
+        d.top.sort { $0.mrr > $1.mrr }
+        d.top = Array(d.top.prefix(8))
+        for (key, its) in byKey where nowValues[key] == nil {
+            guard let last = its.compactMap({ $0.fact.paidOnce ? $0.fact.end : nil }).max(),
+                  last > now.addingTimeInterval(-90 * day), let first = its.first else { continue }
+            let lost = its.filter { $0.fact.pays(at: last.addingTimeInterval(-1)) }.reduce(0) { $0 + $1.monthly }
+            guard lost > 0 else { continue }
+            d.churned.append(.init(id: key, account: first.account, who: its.compactMap(\.fact.who).first ?? first.fact.customer, mrr: lost, date: last))
+        }
+        d.churned.sort { $0.date > $1.date }
+        d.churned = Array(d.churned.prefix(8))
+
+        for a in all {
+            let m = movement(items([a]), now.addingTimeInterval(-30 * day), now)
+            d.projects.append(.init(id: a.id, mrr: m.endMrr,
+                                    growth: m.startMrr > 0 ? Double(m.endMrr - m.startMrr) / Double(m.startMrr) : nil,
+                                    customers: m.endCustomers,
+                                    churn: m.startCustomers > 0 ? Double(m.churnedCustomers) / Double(m.startCustomers) : nil,
+                                    arpu: m.endCustomers > 0 ? m.endMrr / m.endCustomers : 0))
+        }
+        return d
+    }
+
+    /// Each customer's MRR at a date.
+    private static func values(_ list: [Item], _ t: Date) -> [String: Int] {
+        var v: [String: Int] = [:]
+        for it in list where it.fact.pays(at: t) { v[it.key, default: 0] += it.monthly }
+        return v
+    }
+
+    /// Customer by customer between two dates: new, back after leaving, paying more, paying less, gone.
+    private static func movement(_ list: [Item], _ a: Date, _ b: Date) -> Movement {
+        let va = values(list, a), vb = values(list, b)
+        let paidBefore = Set(list.filter { $0.fact.start < a && $0.fact.paidOnce }.map(\.key))
+        var m = Movement()
+        m.startMrr = va.values.reduce(0, +); m.endMrr = vb.values.reduce(0, +)
+        m.startCustomers = va.count; m.endCustomers = vb.count
+        for key in Set(va.keys).union(vb.keys) {
+            let x = va[key] ?? 0, y = vb[key] ?? 0
+            if x == 0 {
+                if paidBefore.contains(key) { m.reactivation += y } else { m.new += y; m.newCustomers += 1 }
+            } else if y == 0 {
+                m.churn += x; m.churnedCustomers += 1
+            } else if y > x { m.expansion += y - x } else if x > y { m.contraction += x - y }
+        }
+        return m
+    }
+}

@@ -88,8 +88,10 @@ struct Prefs: Codable, Equatable {
     var recapEnabled = true
     var showSignupsInMenuBar = true
     var recapHour = 20
+    /// MRR goal for the dashboard, whole units of the display currency. 0: none.
+    var goal = 0
 
-    enum CodingKeys: String, CodingKey { case kinds, sound, showAmountInMenuBar, pollSeconds, displayCurrency, recapEnabled, recapHour, showSignupsInMenuBar }
+    enum CodingKeys: String, CodingKey { case kinds, sound, showAmountInMenuBar, pollSeconds, displayCurrency, recapEnabled, recapHour, showSignupsInMenuBar, goal }
     init() {}
     init(from d: Decoder) throws {
         let c = try d.container(keyedBy: CodingKeys.self)
@@ -101,6 +103,7 @@ struct Prefs: Codable, Equatable {
         recapEnabled = try c.decodeIfPresent(Bool.self, forKey: .recapEnabled) ?? recapEnabled
         recapHour = try c.decodeIfPresent(Int.self, forKey: .recapHour) ?? recapHour
         showSignupsInMenuBar = try c.decodeIfPresent(Bool.self, forKey: .showSignupsInMenuBar) ?? showSignupsInMenuBar
+        goal = try c.decodeIfPresent(Int.self, forKey: .goal) ?? goal
     }
 }
 
@@ -124,7 +127,9 @@ enum Disk {
         let e = JSONEncoder()
         e.dateEncodingStrategy = .secondsSince1970
         e.outputFormatting = [.prettyPrinted, .sortedKeys]
-        try? e.encode(value).write(to: folder.appendingPathComponent(name), options: .atomic)
+        let url = folder.appendingPathComponent(name)
+        try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? e.encode(value).write(to: url, options: .atomic)
     }
 }
 
