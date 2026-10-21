@@ -106,7 +106,7 @@ struct StripeClient {
         return out
     }
 
-    /// MRR the way a founder reads it, not Stripe's headline figure (same rules as Viewlify's admin):
+    /// MRR the way a founder reads it, not Stripe's headline figure:
     /// real = active subscriptions only; at risk = past_due (payment failed, Stripe still retrying);
     /// trials = trialing and not set to cancel; conversion = paying share of ended trials, one per customer;
     /// projected = real + trials x conversion. Deleted customers are test fixtures and never count.
