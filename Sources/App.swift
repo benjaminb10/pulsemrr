@@ -74,6 +74,10 @@ struct PulseMRRApp: App {
                 let m = demo ? Model.demo() : Model()
                 if !demo { await m.refreshStats(); await m.loadDashboard() }
                 if let project, m.active.indices.contains(project) { m.dashboardScope = m.active[project].id }
+                // `projects 0,2`: several projects ticked
+                if let j = args.firstIndex(of: "projects"), args.count > j + 1 {
+                    m.dashboardSelection = Set(args[j + 1].split(separator: ",").compactMap { Int($0) }.filter { m.active.indices.contains($0) }.map { m.active[$0].id })
+                }
                 m.rebuildDashboard()
                 NSApplication.shared.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
                 let view = DashboardContent(model: m)

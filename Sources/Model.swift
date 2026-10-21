@@ -26,8 +26,25 @@ final class Model: ObservableObject {
     @Published var facts: [UUID: [SubFact]] = [:]
     @Published var revenue: [UUID: [Date: [String: Int]]] = [:]
     @Published var failedInvoices: [UUID: [FailedInvoice]] = [:]
-    /// Nil: all projects.
-    @Published var dashboardScope: UUID? { didSet { rebuildDashboard() } }
+    /// The projects the dashboard adds up. Empty: all of them.
+    @Published var dashboardSelection: Set<UUID> = [] { didSet { rebuildDashboard() } }
+    /// The one project the dashboard looks at, nil when it shows several or all. Setting it selects only that one.
+    var dashboardScope: UUID? {
+        get { dashboardSelection.count == 1 ? dashboardSelection.first : nil }
+        set { dashboardSelection = newValue.map { [$0] } ?? [] }
+    }
+    /// The selected projects, in the accounts' order.
+    var dashboardAccounts: [Account] {
+        let picked = active.filter { dashboardSelection.contains($0.id) }
+        return picked.isEmpty ? active : picked
+    }
+
+    /// Ticks or unticks a project in the sidebar. Unticking the last one, or ticking them all, goes back to all.
+    func toggleInDashboard(_ id: UUID) {
+        var s = dashboardSelection.isEmpty ? Set(active.map(\.id)) : dashboardSelection
+        if s.contains(id) { s.remove(id) } else { s.insert(id) }
+        dashboardSelection = (s.isEmpty || s.count == active.count) ? [] : s
+    }
     @Published var dashboardMonths = 12 { didSet { rebuildDashboard() } }
     @Published var dashboard = DashboardData()
     @Published var projection = Projection()
@@ -357,10 +374,10 @@ final class Model: ObservableObject {
     }
 
     func rebuildDashboard() {
-        let scope = dashboardScope.flatMap { id in active.first { $0.id == id } }
-        dashboard = Analytics.build(accounts: scope.map { [$0] } ?? active, all: active, facts: facts, revenue: revenue,
+        let picked = dashboardAccounts
+        dashboard = Analytics.build(accounts: picked, all: picked, facts: facts, revenue: revenue,
                                     failed: failedInvoices, months: dashboardMonths, convert: convert)
-        projection = Projection.build(accounts: scope.map { [$0] } ?? active, facts: facts, snapshots: mrrDetail, convert: convert)
+        projection = Projection.build(accounts: picked, facts: facts, snapshots: mrrDetail, convert: convert)
     }
 
     /// ECB reference rates (frankfurter.app, free, no key), refreshed every 6 hours.
@@ -573,7 +590,7 @@ final class Model: ObservableObject {
         for f in ["subscriptions", "revenue", "failed"] {
             try? FileManager.default.removeItem(at: Disk.folder.appendingPathComponent("history/\(f)-\(a.id.uuidString).json"))
         }
-        if dashboardScope == a.id { dashboardScope = nil }
+        dashboardSelection.remove(a.id)
     }
 
     /// What macOS allows for PulseMRR's notifications, for the settings and for --notif-status.

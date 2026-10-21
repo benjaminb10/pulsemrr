@@ -23,7 +23,7 @@ struct DashboardView: View {
     var body: some View {
         NavigationSplitView {
             DashboardSidebar(model: model)
-                .navigationSplitViewColumnWidth(min: 210, ideal: 230, max: 300)
+                .navigationSplitViewColumnWidth(min: 250, ideal: 260, max: 320)
         } detail: {
             ScrollView {
                 DashboardContent(model: model).padding(28).frame(maxWidth: 1240)
@@ -62,35 +62,78 @@ struct DashboardView: View {
     }
 }
 
+/// The projects with a tick each: all by default, any mix of them, or one alone with "Only".
 struct DashboardSidebar: View {
     @ObservedObject var model: Model
 
     var body: some View {
-        let selection = Binding<String?>(get: { model.dashboardScope?.uuidString ?? "all" },
-                                         set: { model.dashboardScope = $0.flatMap(UUID.init(uuidString:)) })
-        List(selection: selection) {
+        let all = model.dashboardSelection.isEmpty
+        List {
             Section("Overview") {
-                HStack(spacing: 9) {
+                SidebarRow(checked: all, partly: false, onlyButton: false) {
                     Image(systemName: "square.grid.2x2").frame(width: 18).foregroundStyle(Palette.brand)
+                } label: {
                     Text("All projects")
-                    Spacer()
-                    Text(Money.format(model.convert(model.mrrTotal), model.currency, compact: true)).foregroundStyle(.secondary).monospacedDigit()
-                }
-                .tag("all")
+                } amount: {
+                    Text(Fmt.money(model.convert(model.mrrTotal), model)).foregroundStyle(.secondary).monospacedDigit()
+                } toggle: {
+                    model.dashboardSelection = []
+                } only: {}
             }
             Section("Projects") {
                 ForEach(model.active) { a in
-                    HStack(spacing: 9) {
+                    SidebarRow(checked: all || model.dashboardSelection.contains(a.id), partly: false, onlyButton: model.active.count > 1) {
                         AccountIcon(model: model, account: a, size: 18)
+                    } label: {
                         Text(a.name).lineLimit(1)
-                        Spacer()
-                        Text(Money.format(model.convert(model.mrr[a.id] ?? [:]), model.currency, compact: true)).foregroundStyle(.secondary).monospacedDigit()
+                    } amount: {
+                        Text(Fmt.money(model.convert(model.mrr[a.id] ?? [:]), model)).foregroundStyle(.secondary).monospacedDigit()
+                    } toggle: {
+                        model.toggleInDashboard(a.id)
+                    } only: {
+                        model.dashboardScope = a.id
                     }
-                    .tag(a.id.uuidString)
                 }
             }
         }
         .listStyle(.sidebar)
+    }
+}
+
+struct SidebarRow<Icon: View, Label: View, Amount: View>: View {
+    let checked: Bool
+    let partly: Bool
+    let onlyButton: Bool
+    @ViewBuilder var icon: Icon
+    @ViewBuilder var label: Label
+    @ViewBuilder var amount: Amount
+    let toggle: () -> Void
+    let only: () -> Void
+    @State private var hover = false
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: checked ? "checkmark.square.fill" : "square")
+                .font(.system(size: 14))
+                .foregroundStyle(checked ? Palette.brand : Color.secondary.opacity(0.6))
+            icon
+            label
+            Spacer(minLength: 4)
+            if hover && onlyButton {
+                Button("Only", action: only)
+                    .buttonStyle(.plain)
+                    .font(.caption.weight(.medium)).foregroundStyle(Palette.brand)
+                    .padding(.horizontal, 6).padding(.vertical, 2)
+                    .background(Palette.brand.opacity(0.1), in: Capsule())
+                    .help(String(localized: "Show only this project"))
+            } else {
+                amount
+            }
+        }
+        .contentShape(Rectangle())
+        .onTapGesture(perform: toggle)
+        .onHover { hover = $0 }
+        .opacity(checked ? 1 : 0.55)
     }
 }
 
@@ -100,12 +143,15 @@ struct DashboardContent: View {
 
     private var d: DashboardData { model.dashboard }
     private var project: Account? { model.dashboardScope.flatMap { id in model.active.first { $0.id == id } } }
+    /// Several projects ticked, but not all of them.
+    private var some: [Account]? { !model.dashboardSelection.isEmpty && project == nil ? model.dashboardAccounts : nil }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             header
             KpiGrid(model: model)
-            if project == nil { GoalCard(model: model) }
+            // The goal is about the whole business
+            if model.dashboardSelection.isEmpty { GoalCard(model: model) }
             ProjectionSection(model: model)
             MrrChartCard(model: model)
             Grid(horizontalSpacing: 18, verticalSpacing: 18) {
@@ -134,12 +180,20 @@ struct DashboardContent: View {
         HStack(alignment: .center, spacing: 12) {
             if let p = project {
                 AccountIcon(model: model, account: p, size: 34)
+            } else if let some {
+                HStack(spacing: -8) {
+                    ForEach(some.prefix(4)) { a in
+                        AccountIcon(model: model, account: a, size: 30)
+                            .overlay(RoundedRectangle(cornerRadius: 7).stroke(Palette.canvas, lineWidth: 2))
+                    }
+                }
             } else {
                 Image(systemName: "square.grid.2x2.fill").font(.system(size: 22)).foregroundStyle(Palette.brand)
                     .frame(width: 34, height: 34)
             }
             VStack(alignment: .leading, spacing: 2) {
-                Text(project?.name ?? String(localized: "All projects")).font(.system(size: 24, weight: .bold, design: .rounded))
+                Text(project?.name ?? some.map { $0.count <= 2 ? $0.map(\.name).joined(separator: " + ") : Fmt.count($0.count, "%lld project", "%lld projects") } ?? String(localized: "All projects"))
+                    .font(.system(size: 24, weight: .bold, design: .rounded)).lineLimit(1)
                 Group {
                     if isSnapshot { Text("Updated just now") }
                     else if model.dashboardLoading { Text("Reading Stripe…") }
@@ -308,7 +362,7 @@ struct MrrChartCard: View {
 
     var body: some View {
         let d = model.dashboard
-        let accounts = model.dashboardScope.flatMap { id in model.active.filter { $0.id == id } } ?? model.active
+        let accounts = model.dashboardAccounts
         let dates = Array(Set(d.series.map(\.date))).sorted()
         let at = hover.flatMap { h in dates.min { abs($0.timeIntervalSince(h)) < abs($1.timeIntervalSince(h)) } }
         let shown = at ?? dates.last
@@ -436,7 +490,7 @@ struct RevenueCard: View {
     @Environment(\.isSnapshot) private var isSnapshot
 
     var body: some View {
-        let accounts = model.dashboardScope.flatMap { id in model.active.filter { $0.id == id } } ?? model.active
+        let accounts = model.dashboardAccounts
         let buckets = self.buckets(accounts)
         let total = buckets.reduce(0) { $0 + $1.value }
         Card(title: String(localized: "Revenue collected"), subtitle: comparison) {
@@ -742,6 +796,7 @@ struct ProjectsCard: View {
                         .padding(.vertical, 8)
                         .contentShape(Rectangle())
                         .onTapGesture { model.dashboardScope = a.id }
+                        .help(String(localized: "Show only this project"))
                     }
                 }
             }

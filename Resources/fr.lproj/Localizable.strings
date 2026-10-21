@@ -251,3 +251,7 @@
 "New trials (%lld)" = "Nouveaux essais (%lld)";
 "Trials cancelled (%lld)" = "Essais annulés (%lld)";
 "Where they stand today. The projection uses this paying share." = "Où ils en sont aujourd'hui. La projection utilise cette part de payants.";
+"Only" = "Seulement";
+"Show only this project" = "Afficher seulement ce projet";
+"%lld project" = "%lld projet";
+"%lld projects" = "%lld projets";
