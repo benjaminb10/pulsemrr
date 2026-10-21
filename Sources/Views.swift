@@ -51,10 +51,19 @@ struct MenuPanel: View {
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 1) {
+                Text("New customers").font(.caption).foregroundStyle(.secondary)
+                HStack(alignment: .lastTextBaseline, spacing: 4) {
+                    Text("\(model.newCustomers(0))").font(.system(size: 15, weight: .semibold, design: .rounded)).monospacedDigit()
+                    Text(String(format: String(localized: "yesterday %lld"), model.newCustomers(1))).font(.caption2).foregroundStyle(.tertiary)
+                }
+            }
+            .help(String(localized: "People who became Stripe customers today, trials included."))
+            .padding(.trailing, 16)
+            VStack(alignment: .trailing, spacing: 1) {
                 Text("Yesterday").font(.caption).foregroundStyle(.secondary)
                 Amount(model: model, sums: model.takings(1), font: .system(size: 15, weight: .semibold, design: .rounded))
             }
-            .padding(.trailing, 18)
+            .padding(.trailing, 16)
             VStack(alignment: .trailing, spacing: 1) {
                 Text("MRR").font(.caption).foregroundStyle(.secondary)
                 Amount(model: model, sums: model.mrrTotal, font: .system(size: 15, weight: .semibold, design: .rounded))
@@ -146,11 +155,21 @@ struct ProjectCard: View {
                 VStack(alignment: .leading, spacing: 1) {
                     Text(account.name).font(.callout.weight(.semibold)).lineLimit(1)
                     HStack(spacing: 3) {
+                        let n = model.newCustomers(account, 0)
                         if today > 0 {
                             Text("Today").foregroundStyle(.secondary)
                             Text("+" + Money.format(today, model.currency, compact: true)).fontWeight(.semibold).foregroundStyle(Palette.money)
-                        } else {
+                        } else if n == 0 {
                             Text("No sale today").foregroundStyle(.tertiary)
+                        }
+                        if n > 0 {
+                            if today > 0 { Text("·").foregroundStyle(.tertiary) }
+                            HStack(spacing: 2) {
+                                Image(systemName: "person.fill").font(.system(size: 9))
+                                Text("\(n)").fontWeight(.semibold)
+                            }
+                            .foregroundStyle(.secondary)
+                            .help(String(format: String(localized: n > 1 ? "%lld new customers" : "%lld new customer"), n))
                         }
                     }
                     .font(.caption).monospacedDigit().lineLimit(1)
@@ -714,6 +733,7 @@ struct SettingsView: View {
 
             Section("General") {
                 Toggle("Today's amount in the menu bar", isOn: $model.prefs.showAmountInMenuBar)
+                Toggle("Today's new customers in the menu bar", isOn: $model.prefs.showSignupsInMenuBar)
                 Picker("Show amounts in", selection: $model.prefs.displayCurrency) {
                     Text("Euro (€)").tag("eur")
                     Text("US dollar ($)").tag("usd")

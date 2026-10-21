@@ -16,6 +16,7 @@ final class Model: ObservableObject {
     @Published var mrr: [UUID: [String: Int]] = [:]
     @Published var subscribers: [UUID: Int] = [:]
     @Published var mrrDetail: [UUID: MrrSnapshot] = [:]
+    @Published var signups: [UUID: [Date: Int]] = [:]
     @Published var errors: [UUID: String] = [:]
     @Published var lastPoll: Date?
     @Published var notificationsAllowed = true
@@ -53,6 +54,10 @@ final class Model: ObservableObject {
 
     /// One account's takings on a day (0 = today, 1 = yesterday), in its original currencies.
     func takings(_ a: Account, _ offset: Int) -> [String: Int] { daily[a.id]?[day(offset)] ?? [:] }
+
+    /// New customers on a day (0 = today, 1 = yesterday): one account, or all watched ones.
+    func newCustomers(_ a: Account, _ offset: Int) -> Int { signups[a.id]?[day(offset)] ?? 0 }
+    func newCustomers(_ offset: Int) -> Int { active.reduce(0) { $0 + newCustomers($1, offset) } }
 
     func takings(_ offset: Int) -> [String: Int] { sum(active.map { takings($0, offset) }) }
 
@@ -250,6 +255,7 @@ final class Model: ObservableObject {
             guard let c = client(a) else { continue }
             do {
                 daily[a.id] = try await c.daily(days: 30)
+                signups[a.id] = try await c.newCustomers(days: 2)
                 let m = try await c.mrr()
                 mrr[a.id] = m.real
                 mrrDetail[a.id] = m
@@ -308,6 +314,7 @@ final class Model: ObservableObject {
         }
         var parts: [String] = []
         func add(_ n: Int, _ one: String, _ many: String) { if n > 0 { parts.append("\(n) " + (n > 1 ? many : one)) } }
+        add(newCustomers(0), String(localized: "new customer"), String(localized: "new customers"))
         add(count([.sale]), String(localized: "sale"), String(localized: "sales"))
         add(count([.newSubscriber]), String(localized: "new subscriber"), String(localized: "new subscribers"))
         add(count([.trialStarted]), String(localized: "trial started"), String(localized: "trials started"))
@@ -463,6 +470,7 @@ final class Model: ObservableObject {
         try? FileManager.default.removeItem(at: a.logoURL)
         logos[a.id] = nil
         daily[a.id] = nil
+        signups[a.id] = nil
         mrr[a.id] = nil
         mrrDetail[a.id] = nil
     }

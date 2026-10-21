@@ -84,9 +84,10 @@ struct Prefs: Codable, Equatable {
     var pollSeconds = 30
     var displayCurrency = "eur"
     var recapEnabled = true
+    var showSignupsInMenuBar = true
     var recapHour = 20
 
-    enum CodingKeys: String, CodingKey { case kinds, sound, showAmountInMenuBar, pollSeconds, displayCurrency, recapEnabled, recapHour }
+    enum CodingKeys: String, CodingKey { case kinds, sound, showAmountInMenuBar, pollSeconds, displayCurrency, recapEnabled, recapHour, showSignupsInMenuBar }
     init() {}
     init(from d: Decoder) throws {
         let c = try d.container(keyedBy: CodingKeys.self)
@@ -97,6 +98,7 @@ struct Prefs: Codable, Equatable {
         displayCurrency = try c.decodeIfPresent(String.self, forKey: .displayCurrency) ?? displayCurrency
         recapEnabled = try c.decodeIfPresent(Bool.self, forKey: .recapEnabled) ?? recapEnabled
         recapHour = try c.decodeIfPresent(Int.self, forKey: .recapHour) ?? recapHour
+        showSignupsInMenuBar = try c.decodeIfPresent(Bool.self, forKey: .showSignupsInMenuBar) ?? showSignupsInMenuBar
     }
 }
 

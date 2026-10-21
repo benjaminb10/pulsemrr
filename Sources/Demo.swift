@@ -40,6 +40,7 @@ extension Model {
             if accounts.count == 3 { d.trials = ["usd": 4800]; d.trialCount = 4; d.trialsEnded = 12; d.trialsPaying = 6 }
             if accounts.count == 2 { d.leaving = ["usd": 3900]; d.leavingCount = 1; d.trials = ["usd": 7800]; d.trialCount = 2; d.trialsEnded = 10; d.trialsPaying = 4 }
             m.mrrDetail[a.id] = d
+            m.signups[a.id] = [m.day(0): [5, 2, 3, 0][accounts.count - 1], m.day(1): [4, 1, 2, 1][accounts.count - 1]]
             m.subscribers[a.id] = mrr / 2900
         }
         m.accounts = accounts

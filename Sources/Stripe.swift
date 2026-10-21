@@ -106,6 +106,19 @@ struct StripeClient {
         return out
     }
 
+    /// New Stripe customers per local day over the last `days` days (trials included: anyone who reached checkout).
+    func newCustomers(days: Int) async throws -> [Date: Int] {
+        let cal = Calendar.current
+        let start = cal.date(byAdding: .day, value: -(days - 1), to: cal.startOfDay(for: Date()))!
+        let customers = try await list("customers", [("created[gte]", String(Int(start.timeIntervalSince1970)))], max: 10000)
+        var out: [Date: Int] = [:]
+        for c in customers {
+            let day = cal.startOfDay(for: Date(timeIntervalSince1970: TimeInterval(c["created"] as? Int ?? 0)))
+            out[day, default: 0] += 1
+        }
+        return out
+    }
+
     /// MRR the way a founder reads it, not Stripe's headline figure:
     /// real = active subscriptions only; at risk = past_due (payment failed, Stripe still retrying);
     /// trials = trialing and not set to cancel; conversion = paying share of ended trials, one per customer;

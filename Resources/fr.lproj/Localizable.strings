@@ -123,3 +123,11 @@
 "%lld cancellations" = "%lld départs";
 "%lld cancellation" = "%lld départ";
 "Trials running now, and the share of this project's past trials that became paying." = "Essais en cours, et la part des essais passés de ce projet devenus payants.";
+"New customers" = "Nouveaux clients";
+"yesterday %lld" = "hier %lld";
+"People who became Stripe customers today, trials included." = "Personnes devenues clientes Stripe aujourd'hui, essais compris.";
+"%lld new customers" = "%lld nouveaux clients";
+"%lld new customer" = "%lld nouveau client";
+"new customer" = "nouveau client";
+"new customers" = "nouveaux clients";
+"Today's new customers in the menu bar" = "Nouveaux clients du jour dans la barre des menus";

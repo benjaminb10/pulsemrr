@@ -123,6 +123,11 @@ struct KachingApp: App {
             HStack(spacing: 3) {
                 Image(systemName: "dollarsign.circle.fill")
                 if !model.menuBarTitle.isEmpty { Text(model.menuBarTitle).monospacedDigit() }
+                // New customers today, trials included
+                if model.prefs.showSignupsInMenuBar, !model.accounts.isEmpty, model.newCustomers(0) > 0 {
+                    Image(systemName: "person.fill")
+                    Text("\(model.newCustomers(0))").monospacedDigit()
+                }
             }
             .task { model.start() }
         }
