@@ -4,10 +4,10 @@
     <title>PulseMRR</title>
     <link>https://github.com/benjaminb10/pulsemrr</link>
     <item>
-      <title>PulseMRR 0.9.3</title>
-      <pubDate>Wed, 21 Oct 2026 20:15:56 +0000</pubDate>
-      <sparkle:version>25</sparkle:version>
-      <sparkle:shortVersionString>0.9.3</sparkle:shortVersionString>
+      <title>PulseMRR 0.9.4</title>
+      <pubDate>Wed, 21 Oct 2026 20:20:49 +0000</pubDate>
+      <sparkle:version>27</sparkle:version>
+      <sparkle:shortVersionString>0.9.4</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
       <description><![CDATA[
 <style>
@@ -18,15 +18,10 @@
   code { font: 12px ui-monospace, monospace; background: rgba(127,127,127,.15); padding: 1px 4px; border-radius: 4px; }
   a { color: #594FE0; }
 </style>
-<h2 dir="auto">Figures under the mouse</h2>
-<ul dir="auto">
-<li>Hover any day of <strong>Real MRR and trials</strong>: a label shows the real MRR, both projections, and that day's new paying customers, new trials and cancelled trials.</li>
-<li>Hover a month of <strong>MRR movements</strong>: new, upgrades, returning, downgrades, cancellations and the net change.</li>
-<li>Hover a bar of <strong>Revenue collected</strong>: each project's takings and the total.</li>
-<li>The sidebar shows each project's MRR right from launch.</li>
-</ul>
+<h2 dir="auto">Churn over time</h2>
+<p dir="auto">A new card in the dashboard: the 30-day rolling churn of paying customers over the last 90 days (each day, the share of customers paying 30 days earlier who no longer pay), with the customers lost each day underneath. Hover any day for the figures.</p>
       ]]></description>
-      <enclosure url="https://github.com/benjaminb10/pulsemrr/releases/download/v0.9.3/PulseMRR.dmg" type="application/octet-stream" sparkle:edSignature="tuioK9kC2qH/T0o2Z/fROmnsNxzRKcKjVJA/yQ/DkTtznyhiEQXo4bOyLkOBOtvIiGxJIyvgSSOOkjhOe4s0Bg==" length="3632573" />
+      <enclosure url="https://github.com/benjaminb10/pulsemrr/releases/download/v0.9.4/PulseMRR.dmg" type="application/octet-stream" sparkle:edSignature="3MusnKWe1gSfFbs7zt7VfsrSdEaVzUXlMuH2XH7fbuC+To7rSc1dzPeK5BkVs0vn2ojee+ImFCL0yirJEmPUCg==" length="3698582" />
     </item>
   </channel>
 </rss>
