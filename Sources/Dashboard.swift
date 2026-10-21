@@ -52,6 +52,8 @@ struct DashboardView: View {
             // A Dock icon and ⌘-Tab while the window is open, like a normal app
             NSApp.setActivationPolicy(.regular)
             NSApp.activate(ignoringOtherApps: true)
+            // No blinking cursor in the goal field on opening
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { NSApp.keyWindow?.makeFirstResponder(nil) }
         }
         .onDisappear {
             model.dashboardOpen = false
@@ -141,8 +143,8 @@ struct DashboardContent: View {
                     if isSnapshot { Text("Updated just now") }
                     else if model.dashboardLoading { Text("Reading Stripe…") }
                     else if let t = model.dashboardUpdated {
-                        let f = RelativeDateTimeFormatter()
-                        Text("Updated") + Text(" ") + Text(f.localizedString(for: t, relativeTo: Date()))
+                        if Date().timeIntervalSince(t) < 60 { Text("Updated just now") }
+                        else { Text("Updated") + Text(" ") + Text(RelativeDateTimeFormatter().localizedString(for: t, relativeTo: Date())) }
                     }
                 }
                 .font(.callout).foregroundStyle(.secondary)
