@@ -131,3 +131,6 @@
 "new customer" = "nouveau client";
 "new customers" = "nouveaux clients";
 "Today's new customers in the menu bar" = "Nouveaux clients du jour dans la barre des menus";
+"Latest" = "Dernières activités";
+"Quiet today" = "Rien aujourd'hui";
+"%lld %% of past trials became paying" = "%lld %% des essais passés sont devenus payants";
