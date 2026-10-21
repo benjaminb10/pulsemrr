@@ -39,6 +39,8 @@ Free, open source, no server. Your keys never leave your Mac.</p>
 
 Needs macOS 13 Ventura or later.
 
+<p align="center"><img src="docs/dmg.png" width="520" alt="The PulseMRR disk image: drag PulseMRR onto Applications"></p>
+
 ### Which key to use
 
 A **restricted key** with read access is all PulseMRR needs. In Stripe: **Developers › API keys › Create restricted key**, then set **Read** on:
