@@ -4,10 +4,10 @@
     <title>PulseMRR</title>
     <link>https://github.com/benjaminb10/pulsemrr</link>
     <item>
-      <title>PulseMRR 0.9.2</title>
-      <pubDate>Wed, 21 Oct 2026 19:36:18 +0000</pubDate>
-      <sparkle:version>23</sparkle:version>
-      <sparkle:shortVersionString>0.9.2</sparkle:shortVersionString>
+      <title>PulseMRR 0.9.3</title>
+      <pubDate>Wed, 21 Oct 2026 20:15:56 +0000</pubDate>
+      <sparkle:version>25</sparkle:version>
+      <sparkle:shortVersionString>0.9.3</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
       <description><![CDATA[
 <style>
@@ -18,14 +18,15 @@
   code { font: 12px ui-monospace, monospace; background: rgba(127,127,127,.15); padding: 1px 4px; border-radius: 4px; }
   a { color: #594FE0; }
 </style>
-<h2 dir="auto">Pick your projects</h2>
+<h2 dir="auto">Figures under the mouse</h2>
 <ul dir="auto">
-<li>In the dashboard's sidebar, each project now has a tick. All are ticked by default; untick the ones you don't want, and every figure, chart and projection adds up the ticked ones only.</li>
-<li>Hover a project and click <strong>Only</strong> to look at it alone. <strong>All projects</strong> ticks everything again.</li>
-<li>The MRR goal shows when all projects are ticked, since it's about the whole business.</li>
+<li>Hover any day of <strong>Real MRR and trials</strong>: a label shows the real MRR, both projections, and that day's new paying customers, new trials and cancelled trials.</li>
+<li>Hover a month of <strong>MRR movements</strong>: new, upgrades, returning, downgrades, cancellations and the net change.</li>
+<li>Hover a bar of <strong>Revenue collected</strong>: each project's takings and the total.</li>
+<li>The sidebar shows each project's MRR right from launch.</li>
 </ul>
       ]]></description>
-      <enclosure url="https://github.com/benjaminb10/pulsemrr/releases/download/v0.9.2/PulseMRR.dmg" type="application/octet-stream" sparkle:edSignature="rzvREYG8+ptT2ScGTOESetc7LUoPdGdU1iSh4/yDeUa4SIHbbZ4gbETI8Ys9f+n1FwCau3tLVHg2znwD6IWhDg==" length="3568114" />
+      <enclosure url="https://github.com/benjaminb10/pulsemrr/releases/download/v0.9.3/PulseMRR.dmg" type="application/octet-stream" sparkle:edSignature="tuioK9kC2qH/T0o2Z/fROmnsNxzRKcKjVJA/yQ/DkTtznyhiEQXo4bOyLkOBOtvIiGxJIyvgSSOOkjhOe4s0Bg==" length="3632573" />
     </item>
   </channel>
 </rss>
