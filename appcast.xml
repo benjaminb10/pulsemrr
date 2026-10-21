@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+  <channel>
+    <title>PulseMRR</title>
+    <link>https://github.com/benjaminb10/pulsemrr</link>
+    <item>
+      <title>PulseMRR 0.9</title>
+      <pubDate>Wed, 21 Oct 2026 19:15:55 +0000</pubDate>
+      <sparkle:version>17</sparkle:version>
+      <sparkle:shortVersionString>0.9</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <sparkle:releaseNotesLink>https://github.com/benjaminb10/pulsemrr/releases/tag/v0.9</sparkle:releaseNotesLink>
+      <enclosure url="https://github.com/benjaminb10/pulsemrr/releases/download/v0.9/PulseMRR.dmg" type="application/octet-stream" sparkle:edSignature="xTtcQPf4KnsTzjs59R6cCHGXBJ3SV/YMbdgZQ6zFz+9AvDZjdbkmPXMwtsWT7mckJO1H8wjZ5NYFlLxq/CtoDw==" length="3371486" />
+    </item>
+  </channel>
+</rss>
