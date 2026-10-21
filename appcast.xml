@@ -5,11 +5,28 @@
     <link>https://github.com/benjaminb10/pulsemrr</link>
     <item>
       <title>PulseMRR 0.9.1</title>
-      <pubDate>Wed, 21 Oct 2026 19:24:09 +0000</pubDate>
+      <pubDate>Wed, 21 Oct 2026 19:25:14 +0000</pubDate>
       <sparkle:version>19</sparkle:version>
       <sparkle:shortVersionString>0.9.1</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
-      <sparkle:releaseNotesLink>https://github.com/benjaminb10/pulsemrr/releases/tag/v0.9.1</sparkle:releaseNotesLink>
+      <description><![CDATA[
+<style>
+  :root { color-scheme: light dark; }
+  body { font: 13px -apple-system, sans-serif; line-height: 1.45; margin: 14px 16px; }
+  h1, h2, h3 { font-size: 14px; margin: 0 0 8px; }
+  ul { padding-left: 18px; margin: 6px 0; } li { margin: 4px 0; }
+  code { font: 12px ui-monospace, monospace; background: rgba(127,127,127,.15); padding: 1px 4px; border-radius: 4px; }
+  a { color: #594FE0; }
+</style>
+<h2 dir="auto">Real MRR and trials</h2>
+<p dir="auto">A new section at the top of the dashboard, after the admin boards of BeReach and Viewlify:</p>
+<ul dir="auto">
+<li>The real MRR of the last 30 days, day by day, then the coming days until the last running trial ends: once if every trial pays, once at your real conversion rate. Subscribers set to cancel drop out on their date.</li>
+<li>Under the curve, each day's new paying customers, new trials and cancelled trials.</li>
+<li>On the side: the projection at the real conversion rate, what's in trial, what's at risk, and where ended trials stand today (paying, payment failed, cancelled).</li>
+</ul>
+<p dir="auto">From 0.9 on, PulseMRR offers this update by itself.</p>
+      ]]></description>
       <enclosure url="https://github.com/benjaminb10/pulsemrr/releases/download/v0.9.1/PulseMRR.dmg" type="application/octet-stream" sparkle:edSignature="/PCrkz+s9sbcq74QRQWlwW61BZNpcS0OGBkejV3LOxmtLjwWCJo0nQ4AVm5mLBuuEFWM85cLeeqnyGeO9tX6Cg==" length="3532729" />
     </item>
   </channel>
