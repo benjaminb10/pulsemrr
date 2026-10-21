@@ -4,13 +4,13 @@
     <title>PulseMRR</title>
     <link>https://github.com/benjaminb10/pulsemrr</link>
     <item>
-      <title>PulseMRR 0.9</title>
-      <pubDate>Wed, 21 Oct 2026 19:15:55 +0000</pubDate>
-      <sparkle:version>17</sparkle:version>
-      <sparkle:shortVersionString>0.9</sparkle:shortVersionString>
+      <title>PulseMRR 0.9.1</title>
+      <pubDate>Wed, 21 Oct 2026 19:24:09 +0000</pubDate>
+      <sparkle:version>19</sparkle:version>
+      <sparkle:shortVersionString>0.9.1</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
-      <sparkle:releaseNotesLink>https://github.com/benjaminb10/pulsemrr/releases/tag/v0.9</sparkle:releaseNotesLink>
-      <enclosure url="https://github.com/benjaminb10/pulsemrr/releases/download/v0.9/PulseMRR.dmg" type="application/octet-stream" sparkle:edSignature="xTtcQPf4KnsTzjs59R6cCHGXBJ3SV/YMbdgZQ6zFz+9AvDZjdbkmPXMwtsWT7mckJO1H8wjZ5NYFlLxq/CtoDw==" length="3371486" />
+      <sparkle:releaseNotesLink>https://github.com/benjaminb10/pulsemrr/releases/tag/v0.9.1</sparkle:releaseNotesLink>
+      <enclosure url="https://github.com/benjaminb10/pulsemrr/releases/download/v0.9.1/PulseMRR.dmg" type="application/octet-stream" sparkle:edSignature="/PCrkz+s9sbcq74QRQWlwW61BZNpcS0OGBkejV3LOxmtLjwWCJo0nQ4AVm5mLBuuEFWM85cLeeqnyGeO9tX6Cg==" length="3532729" />
     </item>
   </channel>
 </rss>
