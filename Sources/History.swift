@@ -124,6 +124,8 @@ struct DashboardData {
     struct Person: Identifiable { let id: String; let account: UUID; let who: String; let mrr: Int; let date: Date }
     struct Project: Identifiable { let id: UUID; let mrr: Int; let growth: Double?; let customers: Int; let churn: Double?; let arpu: Int }
     struct Failed: Identifiable { let account: UUID; let invoice: FailedInvoice; let amount: Int; var id: String { invoice.id } }
+    /// One day of churn: the share of the customers paying 30 days earlier who no longer pay, and who left that day.
+    struct ChurnDay: Identifiable { let date: Date; let rate: Double?; let lost: Int; let base: Int; var id: Date { date } }
 
     var series: [Point] = []
     var months: [Month] = []
@@ -136,6 +138,7 @@ struct DashboardData {
     var top: [Person] = []
     var churned: [Person] = []
     var projects: [Project] = []
+    var churn: [ChurnDay] = []
     /// Average net new MRR a month over the last 3 full months.
     var pace: Int?
 
@@ -222,6 +225,23 @@ enum Analytics {
         }
         d.churned.sort { $0.date > $1.date }
         d.churned = Array(d.churned.prefix(8))
+
+        // Churn over time: 30-day rolling customer churn, and customers lost each day, over the last 90 days
+        let today = cal.startOfDay(for: now)
+        let span = 90, window = 30
+        var paying: [Int: Set<String>] = [:]   // days ago -> customers paying at the end of that day
+        for k in 0...(span + window) {
+            let day = cal.date(byAdding: .day, value: -k, to: today)!
+            let t = k == 0 ? now : min(now, cal.date(byAdding: .day, value: 1, to: day)!.addingTimeInterval(-1))
+            paying[k] = Set(values(list, t).keys)
+        }
+        for k in stride(from: span, through: 0, by: -1) {
+            let day = cal.date(byAdding: .day, value: -k, to: today)!
+            let base = paying[k + window] ?? []
+            let gone = base.subtracting(paying[k] ?? [])
+            let lost = (paying[k + 1] ?? []).subtracting(paying[k] ?? []).count
+            d.churn.append(.init(date: day, rate: base.isEmpty ? nil : Double(gone.count) / Double(base.count), lost: lost, base: base.count))
+        }
 
         for a in all {
             let m = movement(items([a]), now.addingTimeInterval(-30 * day), now)

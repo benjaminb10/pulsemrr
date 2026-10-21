@@ -260,3 +260,10 @@
 "Trials cancelled" = "Essais annulés";
 "Net" = "Net";
 "Total" = "Total";
+"Churn over time" = "Churn dans le temps";
+"Paying customers, last 90 days" = "Clients payants, 90 derniers jours";
+"30-day churn today" = "churn sur 30 jours, aujourd'hui";
+"30-day churn" = "Churn sur 30 jours";
+"Customers lost that day (%lld)" = "Clients perdus ce jour-là (%lld)";
+"Lost that day" = "Perdus ce jour-là";
+"Paying 30 days earlier" = "Payants 30 jours avant";

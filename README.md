@@ -39,6 +39,7 @@ Click the **Dashboard** card under today's figure (or press ⌘D), or a project,
 - **MRR over 3, 6 or 12 months**, all projects stacked or one at a time. Hover the chart to read any week.
 - **Where the MRR comes from and goes**, month by month: new customers, upgrades, returning customers, downgrades and cancellations, with the net change.
 - **The numbers that matter:** net new MRR, paying customers, revenue per customer, customer and revenue churn, lifetime value, trial conversion.
+- **Churn over time:** the 30-day rolling churn of paying customers over the last 90 days, with the customers lost each day.
 - **Revenue collected** by day, week or month, and this month against the same days of last month.
 - **An MRR goal**, with the month you'll reach it at your current pace.
 - **Failed payments** of the last 90 days: still retrying, recovered, lost, and your recovery rate.

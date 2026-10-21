@@ -154,6 +154,7 @@ struct DashboardContent: View {
             if model.dashboardSelection.isEmpty { GoalCard(model: model) }
             ProjectionSection(model: model)
             MrrChartCard(model: model)
+            ChurnCard(model: model)
             Grid(horizontalSpacing: 18, verticalSpacing: 18) {
                 GridRow {
                     MovementsCard(model: model)
@@ -1146,5 +1147,96 @@ struct ChartTip: View {
         .background(Palette.surface, in: RoundedRectangle(cornerRadius: 9))
         .overlay(RoundedRectangle(cornerRadius: 9).stroke(Palette.line))
         .shadow(color: .black.opacity(0.12), radius: 8, y: 3)
+    }
+}
+
+// MARK: Churn over time
+
+/// The 30-day rolling churn of paying customers over the last 90 days, with the customers lost each day under it.
+struct ChurnCard: View {
+    @ObservedObject var model: Model
+    @State private var hover: Date?
+
+    var body: some View {
+        let days = model.dashboard.churn
+        let first = days.first?.date ?? Date(), last = (days.last?.date ?? Date()).addingTimeInterval(86400)
+        let now = days.last?.rate
+        let lost = days.reduce(0) { $0 + $1.lost }
+        let picked = hover.flatMap { h in days.min { abs($0.date.addingTimeInterval(43200).timeIntervalSince(h)) < abs($1.date.addingTimeInterval(43200).timeIntervalSince(h)) } }
+        let top = max(0.1, (days.compactMap(\.rate).max() ?? 0) * 1.25)
+        Card(title: String(localized: "Churn over time"), subtitle: String(localized: "Paying customers, last 90 days")) {
+            VStack(alignment: .trailing, spacing: 2) {
+                Text(Fmt.percent(now)).font(.system(size: 20, weight: .semibold, design: .rounded)).monospacedDigit()
+                    .foregroundStyle((now ?? 0) > 0.1 ? Palette.loss : .primary)
+                Text("30-day churn today").font(.caption).foregroundStyle(.secondary)
+            }
+        } content: {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 14) {
+                    HStack(spacing: 5) {
+                        Path { $0.move(to: CGPoint(x: 0, y: 4)); $0.addLine(to: CGPoint(x: 18, y: 4)) }.stroke(Palette.loss, lineWidth: 2).frame(width: 18, height: 8)
+                        Text("30-day churn")
+                    }
+                    HStack(spacing: 5) {
+                        RoundedRectangle(cornerRadius: 2).fill(Palette.loss.opacity(0.45)).frame(width: 9, height: 9)
+                        Text(String(format: String(localized: "Customers lost that day (%lld)"), lost))
+                    }
+                }
+                .font(.caption).foregroundStyle(.secondary)
+                Chart {
+                    ForEach(days.filter { $0.rate != nil }) { d in
+                        AreaMark(x: .value("Day", d.date), y: .value("Churn", d.rate!))
+                            .foregroundStyle(LinearGradient(colors: [Palette.loss.opacity(0.14), Palette.loss.opacity(0)], startPoint: .top, endPoint: .bottom))
+                        LineMark(x: .value("Day", d.date), y: .value("Churn", d.rate!))
+                            .foregroundStyle(Palette.loss).lineStyle(StrokeStyle(lineWidth: 2))
+                    }
+                    if let d = picked {
+                        let mid = first.addingTimeInterval(last.timeIntervalSince(first) / 2)
+                        RuleMark(x: .value("Hover", d.date))
+                            .foregroundStyle(Color.primary.opacity(0.3)).lineStyle(StrokeStyle(lineWidth: 1))
+                            .annotation(position: d.date > mid ? .leading : .trailing, alignment: .top, spacing: 8) {
+                                ChartTip(title: Fmt.date(d.date, "EEEE d MMM"), rows: [
+                                    (Palette.loss, String(localized: "30-day churn"), Fmt.percent(d.rate)),
+                                    (Palette.loss.opacity(0.45), String(localized: "Lost that day"), "\(d.lost)"),
+                                    (Color.secondary, String(localized: "Paying 30 days earlier"), "\(d.base)"),
+                                ])
+                            }
+                        if let r = d.rate { PointMark(x: .value("Day", d.date), y: .value("Churn", r)).foregroundStyle(Palette.loss).symbolSize(40) }
+                    }
+                }
+                .chartXScale(domain: first...last)
+                .chartYScale(domain: 0...top)
+                .chartYAxis {
+                    AxisMarks(position: .leading, values: .automatic(desiredCount: 4)) { v in
+                        AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5)).foregroundStyle(Palette.line)
+                        AxisValueLabel { if let x = v.as(Double.self) { Text(Fmt.percent(x, digits: 0)) } }
+                    }
+                }
+                .chartXAxis(.hidden)
+                .modifier(HoverDate(hover: $hover))
+                .frame(height: 170)
+                Chart {
+                    ForEach(days.filter { $0.lost > 0 }) { d in
+                        BarMark(x: .value("Day", d.date, unit: .day), y: .value("Lost", d.lost)).foregroundStyle(Palette.loss.opacity(0.45))
+                    }
+                    if let d = picked {
+                        RuleMark(x: .value("Hover", d.date.addingTimeInterval(43200))).foregroundStyle(Color.primary.opacity(0.3)).lineStyle(StrokeStyle(lineWidth: 1))
+                    }
+                }
+                .chartXScale(domain: first...last)
+                .chartYAxis {
+                    AxisMarks(position: .leading, values: .automatic(desiredCount: 2)) { v in
+                        AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5)).foregroundStyle(Palette.line)
+                        AxisValueLabel { if let x = v.as(Int.self) { Text("\(x)") } }
+                    }
+                }
+                .chartXAxis {
+                    AxisMarks(values: .stride(by: .day, count: 14)) { _ in AxisValueLabel(format: .dateTime.day().month(.abbreviated)) }
+                }
+                .modifier(HoverDate(hover: $hover))
+                .frame(height: 70)
+                .padding(.top, 8)
+            }
+        }
     }
 }
