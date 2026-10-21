@@ -165,13 +165,14 @@ struct StripeClient {
         return (snap, subs.compactMap(StripeClient.fact))
     }
 
-    /// Adds one subscription's monthly equivalent (list price, yearly / 12, weekly x 52 / 12) to a per-currency sum.
+    /// Adds one subscription's monthly equivalent (list price less a running percentage coupon, yearly / 12, weekly x 52 / 12) to a per-currency sum.
     private func add(_ sums: inout [String: Int], _ s: [String: Any]) {
         for (cur, v) in Self.monthlyValue(s) { sums[cur, default: 0] += v }
     }
 
     static func monthlyValue(_ s: [String: Any]) -> [String: Int] {
         var sums: [String: Int] = [:]
+        let keep = 1 - percentOff(s) / 100
         let items = (s["items"] as? [String: Any])?["data"] as? [[String: Any]] ?? []
         for item in items {
             guard let price = item["price"] as? [String: Any], let recurring = price["recurring"] as? [String: Any],
@@ -180,15 +181,30 @@ struct StripeClient {
             let count = Double(recurring["interval_count"] as? Int ?? 1)
             let perMonth: Double
             switch recurring["interval"] as? String {
-            case "day": perMonth = 30.0 / count
+            case "day": perMonth = 30.4375 / count
             case "week": perMonth = 52.0 / 12.0 / count
             case "year": perMonth = 1.0 / 12.0 / count
             default: perMonth = 1.0 / count
             }
             let cur = price["currency"] as? String ?? (s["currency"] as? String ?? "eur")
-            sums[cur, default: 0] += Int((Double(amount * qty) * perMonth).rounded())
+            sums[cur, default: 0] += Int((Double(amount * qty) * perMonth * keep).rounded())
         }
         return sums
+    }
+
+    /// A percentage coupon still running on the subscription (legacy `discount`, or `discounts` when expanded).
+    /// Fixed-amount coupons are left out: spreading them over the items needs proration data Stripe doesn't return here.
+    static func percentOff(_ s: [String: Any]) -> Double {
+        var all = (s["discounts"] as? [Any])?.compactMap { $0 as? [String: Any] } ?? []
+        if let one = s["discount"] as? [String: Any] { all.append(one) }
+        let now = Int(Date().timeIntervalSince1970)
+        for d in all {
+            if let end = d["end"] as? Int, end <= now { continue }
+            let coupon = (d["coupon"] as? [String: Any]) ?? ((d["source"] as? [String: Any])?["coupon"] as? [String: Any])
+            if let p = coupon?["percent_off"] as? Double, p > 0 { return min(p, 100) }
+            if let p = coupon?["percent_off"] as? Int, p > 0 { return Double(min(p, 100)) }
+        }
+        return 0
     }
 }
 

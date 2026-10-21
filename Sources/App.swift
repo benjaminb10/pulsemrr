@@ -2,12 +2,17 @@
 // across all your Stripe accounts, with today's takings and the MRR in the menu bar. No server.
 import AppKit
 import ServiceManagement
+import Sparkle
 import SwiftUI
 import UserNotifications
 
 final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
+    /// Sparkle: checks the appcast once a day and offers the new version, signed with the maintainer's key.
+    static var updater: SPUStandardUpdaterController?
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         UNUserNotificationCenter.current().delegate = self
+        AppDelegate.updater = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
     }
 
     // Show the banner even though a menu bar app counts as the active app.

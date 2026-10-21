@@ -9,12 +9,25 @@ NOTARY_PROFILE=${NOTARY_PROFILE:-encorescreen-notary}
 APP="build/PulseMRR.app"
 
 mkdir -p build && /bin/rm -rf "$APP" build/obj && mkdir -p build/obj
+# Sparkle (automatic updates): the official release, fetched once into build/vendor
+SPARKLE_VERSION=2.10.0
+SPARKLE="build/vendor/sparkle-$SPARKLE_VERSION"
+if [[ ! -d $SPARKLE/Sparkle.framework ]]; then
+  mkdir -p "$SPARKLE"
+  curl -fsSL "https://github.com/sparkle-project/Sparkle/releases/download/$SPARKLE_VERSION/Sparkle-$SPARKLE_VERSION.tar.xz" | tar -xJ -C "$SPARKLE"
+fi
+# Public half of the key that signs updates (the private half stays in the maintainer's Keychain)
+SU_PUBLIC_KEY=XEgLTXNKAhjALYj1DGsh8i7KjXvNYP1cTv1KkszfEKc=
+SU_FEED=https://raw.githubusercontent.com/benjaminb10/pulsemrr/main/appcast.xml
+
 SOURCES=(Sources/*.swift)
-xcrun swiftc -O -swift-version 5 -parse-as-library -target arm64-apple-macos13.0 $SOURCES -o build/obj/arm64
-xcrun swiftc -O -swift-version 5 -parse-as-library -target x86_64-apple-macos13.0 $SOURCES -o build/obj/x86_64
+LINK=(-F "$SPARKLE" -framework Sparkle -Xlinker -rpath -Xlinker @executable_path/../Frameworks)
+xcrun swiftc -O -swift-version 5 -parse-as-library -target arm64-apple-macos13.0 $LINK $SOURCES -o build/obj/arm64
+xcrun swiftc -O -swift-version 5 -parse-as-library -target x86_64-apple-macos13.0 $LINK $SOURCES -o build/obj/x86_64
 lipo -create build/obj/arm64 build/obj/x86_64 -output build/obj/PulseMRR
 
-mkdir -p "$APP"/Contents/MacOS "$APP"/Contents/Resources
+mkdir -p "$APP"/Contents/MacOS "$APP"/Contents/Resources "$APP"/Contents/Frameworks
+ditto "$SPARKLE/Sparkle.framework" "$APP/Contents/Frameworks/Sparkle.framework"
 cp build/obj/PulseMRR "$APP/Contents/MacOS/PulseMRR"
 [[ -f Icons/PulseMRR.icns ]] && cp Icons/PulseMRR.icns "$APP"/Contents/Resources/AppIcon.icns
 cp Sounds/cash.caf "$APP"/Contents/Resources/cash.caf
@@ -37,18 +50,25 @@ cat > "$APP"/Contents/Info.plist <<PLIST
 <key>LSUIElement</key><true/>
 <key>NSUserNotificationAlertStyle</key><string>alert</string>
 <key>LSApplicationCategoryType</key><string>public.app-category.finance</string>
+<key>SUFeedURL</key><string>$SU_FEED</string>
+<key>SUPublicEDKey</key><string>$SU_PUBLIC_KEY</string>
+<key>SUEnableAutomaticChecks</key><true/>
 <key>NSHumanReadableCopyright</key><string>A notification for every Stripe sale.</string>
 </dict></plist>
 PLIST
 /bin/rm -rf build/obj
 
 DEVID=$(security find-identity -v -p codesigning | grep -o '"Developer ID Application[^"]*"' | head -1 | tr -d '"')
-if [[ -n $DEVID ]]; then
-  echo "Signing with $DEVID"
-  codesign --force --options runtime --timestamp --sign "$DEVID" "$APP"
-else
-  codesign --force --sign - "$APP"
-fi
+SIGN=(--force --sign "${DEVID:--}")
+[[ -n $DEVID ]] && SIGN+=(--options runtime --timestamp) && echo "Signing with $DEVID"
+# Sparkle's helpers first, inside out, then the framework, then the app
+FW="$APP/Contents/Frameworks/Sparkle.framework/Versions/B"
+codesign $SIGN "$FW/XPCServices/Installer.xpc"
+codesign $SIGN --preserve-metadata=entitlements "$FW/XPCServices/Downloader.xpc"
+codesign $SIGN "$FW/Autoupdate"
+codesign $SIGN "$FW/Updater.app"
+codesign $SIGN "$APP/Contents/Frameworks/Sparkle.framework"
+codesign $SIGN "$APP"
 
 ./make-dmg.sh
 

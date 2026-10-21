@@ -54,11 +54,19 @@ Everything is computed on your Mac from what Stripe already returns. The first o
 
 ## Install
 
+With [Homebrew](https://brew.sh):
+
+```bash
+brew install --cask benjaminb10/tap/pulsemrr
+```
+
+Or by hand:
+
 1. Download `PulseMRR.dmg` from the [latest release](https://github.com/benjaminb10/pulsemrr/releases/latest) and drag PulseMRR to Applications. It's signed and notarized by Apple.
 2. Open it: a `$` icon appears in your menu bar. Allow notifications when macOS asks.
 3. Click the icon, then **Add a Stripe account…**, and paste a key.
 
-Needs macOS 13 Ventura or later.
+Needs macOS 13 Ventura or later. PulseMRR updates itself: it checks for a new version once a day (you can turn it off in Settings › Updates), and every update is signed.
 
 <p align="center"><img src="docs/dmg.png" width="520" alt="The PulseMRR disk image: drag PulseMRR onto Applications"></p>
 
@@ -75,11 +83,56 @@ A **restricted key** with read access is all PulseMRR needs. In Stripe: **Develo
 
 and leave everything else at None. A secret key (`sk_live_…`) works too, but PulseMRR never needs more than reading.
 
+## How MRR is calculated
+
+PulseMRR rebuilds the MRR from your subscriptions instead of trusting a headline figure, so it reads the same as what you actually collect:
+
+```
+monthly = unit price × quantity × (periods per month ÷ interval count) × (1 − percentage coupon)
+```
+
+with 30.4375 periods a month for daily plans, 52 ÷ 12 for weekly, 1 for monthly and 1 ÷ 12 for yearly.
+
+| Case | What PulseMRR does |
+| --- | --- |
+| Active subscription | Counted in the MRR |
+| Payment failed (past due, unpaid) | **Not** in the MRR: shown apart, as failed payments to chase |
+| Free trial | Not in the MRR: counted in trials, with your real conversion rate |
+| Cancellation scheduled | Still in the MRR until the period ends, flagged as leaving |
+| Yearly or quarterly plan | Divided by 12 or by 3 |
+| Seats, quantity | Multiplied |
+| Percentage coupon (−20 %) | Applied while it runs |
+| Fixed-amount coupon (−5 €) | Not applied: spreading it over the items needs data Stripe doesn't return on the subscription |
+| Tiered or metered price | Left out: its amount depends on usage Stripe hasn't billed yet |
+| Test customers (deleted) | Never counted |
+| Several currencies | Added up in your display currency at the day's ECB rate |
+| One person, two Stripe customers (same email) | Counted once in the dashboard |
+
+The MRR history in the dashboard comes from the same subscriptions: each one counts from the day it started paying (the end of its trial) to the day it ended or its renewal failed. So the curve starts where your business did, not on the day you installed PulseMRR.
+
+## PulseMRR and the alternatives
+
+| | PulseMRR | MRRDock | IndieBar | Baremetrics, ChartMogul |
+| --- | --- | --- | --- | --- |
+| Price | Free, MIT | Free, MIT | Paid | Paid monthly, by MRR tier |
+| Where it runs | Mac app | Mac menu bar | Mac menu bar | Web |
+| Where your data goes | Nowhere: Mac → Stripe | Nowhere: Mac → platforms | Mac → platforms | Their servers |
+| Several Stripe accounts | Yes | Yes | Higher plan | Depends on plan |
+| A notification for every sale | Yes, with a cash register sound | Discord or Slack milestones | Yes | Email digests |
+| Full dashboard window | Yes | No | No | Yes |
+| MRR history before install | Yes, rebuilt from subscriptions | From RevenueCat only | Not documented | Yes |
+| Churn, LTV, MRR movements | Yes | No | Partly | Yes, with cohorts |
+| Failed payments apart from MRR | Yes | No | Not documented | Yes |
+| Payment platforms | Stripe | Stripe, RevenueCat, Paddle, Lemon Squeezy, Polar and more | Stripe, RevenueCat | Stripe and more |
+
+Pick MRRDock if your revenue is spread over several platforms and one total is all you need. Pick Baremetrics or ChartMogul for cohorts and forecasting at team scale. Pick PulseMRR if you run several products on Stripe and want every sale, the real MRR and the dashboard on your Mac, without handing your billing data to anyone.
+
 ## Privacy
 
 - **No server.** PulseMRR talks to Stripe's API directly from your Mac, every 30 seconds by default.
 - **Read only.** Every call is a `GET`: PulseMRR never creates, changes or deletes anything in Stripe.
 - **Keys stay in your Keychain**, never in a file, never sent anywhere but `api.stripe.com`.
+- **Updates:** once a day, PulseMRR reads a small file on GitHub (`appcast.xml`) to see if there's a new version. It sends nothing about you or your accounts.
 - **Other requests:** the day's exchange rates from [frankfurter.app](https://frankfurter.app) (ECB data), and your project's favicon from Google's favicon service when your Stripe account has no icon.
 
 ## Build from source
@@ -91,7 +144,7 @@ SKIP_NOTARIZE=1 ./build.sh
 open build/PulseMRR.app
 ```
 
-No Xcode project: `build.sh` compiles the Swift sources with `swiftc` into a universal app (Apple Silicon and Intel). It signs with your *Developer ID Application* identity when you have one, ad-hoc otherwise.
+No Xcode project: `build.sh` downloads [Sparkle](https://sparkle-project.org) once (for updates), then compiles the Swift sources with `swiftc` into a universal app (Apple Silicon and Intel). It signs with your *Developer ID Application* identity when you have one, ad-hoc otherwise.
 
 `PulseMRR --demo-snapshot out.png` draws the panel with made-up projects, and `PulseMRR --dashboard-snapshot out.png demo` the dashboard, as in the screenshots above.
 

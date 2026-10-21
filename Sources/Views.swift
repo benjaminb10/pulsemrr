@@ -164,6 +164,23 @@ struct DashboardTeaser: View {
     }
 }
 
+/// Sparkle's settings: daily automatic checks, and a button to check now.
+struct UpdatesSettings: View {
+    @State private var automatic = AppDelegate.updater?.updater.automaticallyChecksForUpdates ?? true
+    private var version: String { Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "" }
+
+    var body: some View {
+        Toggle("Check for updates automatically", isOn: $automatic)
+            .onChange(of: automatic) { AppDelegate.updater?.updater.automaticallyChecksForUpdates = $0 }
+        HStack {
+            Text(String(format: String(localized: "PulseMRR %@"), version)).foregroundStyle(.secondary)
+            Spacer()
+            Button("Check for Updates…") { AppDelegate.updater?.checkForUpdates(nil) }
+                .disabled(AppDelegate.updater == nil)
+        }
+    }
+}
+
 struct Hairline: View {
     var body: some View { Rectangle().fill(Palette.line).frame(height: 1) }
 }
@@ -759,6 +776,9 @@ struct SettingsView: View {
                     Text("5 minutes").tag(300)
                 }
                 Toggle("Open at login", isOn: Binding(get: { model.launchAtLogin }, set: { model.launchAtLogin = $0 }))
+            }
+            Section("Updates") {
+                UpdatesSettings()
             }
         }
         .formStyle(.grouped)
