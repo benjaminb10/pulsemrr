@@ -362,6 +362,14 @@ final class Model: ObservableObject {
         dashboardUpdated = Date()
     }
 
+    /// One project's MRR now, from the same subscriptions as the dashboard (on disk from the last run), so it's right
+    /// from the first second; the menu's own figure until they're read.
+    func mrrNow(_ a: Account) -> Int {
+        guard let f = facts[a.id] else { return convert(mrr[a.id] ?? [:]) }
+        let now = Date()
+        return f.filter { $0.pays(at: now) }.reduce(0) { $0 + convert($1.monthly, $1.currency) }
+    }
+
     /// Total MRR every two weeks over the last 12 months, in the display currency: the panel's teaser curve.
     func mrrTrend() -> [Int] {
         let now = Date()

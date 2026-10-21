@@ -255,3 +255,8 @@
 "Show only this project" = "Afficher seulement ce projet";
 "%lld project" = "%lld projet";
 "%lld projects" = "%lld projets";
+"New paying customers" = "Nouveaux payants";
+"New trials" = "Nouveaux essais";
+"Trials cancelled" = "Essais annulés";
+"Net" = "Net";
+"Total" = "Total";

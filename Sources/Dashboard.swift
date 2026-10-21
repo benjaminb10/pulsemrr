@@ -75,7 +75,7 @@ struct DashboardSidebar: View {
                 } label: {
                     Text("All projects")
                 } amount: {
-                    Text(Fmt.money(model.convert(model.mrrTotal), model)).foregroundStyle(.secondary).monospacedDigit()
+                    Text(Fmt.money(model.active.reduce(0) { $0 + model.mrrNow($1) }, model)).foregroundStyle(.secondary).monospacedDigit()
                 } toggle: {
                     model.dashboardSelection = []
                 } only: {}
@@ -87,7 +87,7 @@ struct DashboardSidebar: View {
                     } label: {
                         Text(a.name).lineLimit(1)
                     } amount: {
-                        Text(Fmt.money(model.convert(model.mrr[a.id] ?? [:]), model)).foregroundStyle(.secondary).monospacedDigit()
+                        Text(Fmt.money(model.mrrNow(a), model)).foregroundStyle(.secondary).monospacedDigit()
                     } toggle: {
                         model.toggleInDashboard(a.id)
                     } only: {
@@ -438,6 +438,7 @@ struct MrrChartCard: View {
 
 struct MovementsCard: View {
     @ObservedObject var model: Model
+    @State private var hover: Date?
 
     var body: some View {
         let months = model.dashboard.months
@@ -472,7 +473,23 @@ struct MovementsCard: View {
                         .symbolSize(22)
                 }
                 RuleMark(y: .value("Zero", 0)).foregroundStyle(Palette.line)
+                if let h = hover, let m = months.last(where: { $0.month <= h }) {
+                    let mid = months[months.count / 2].month
+                    RuleMark(x: .value("Month", m.month, unit: .month))
+                        .foregroundStyle(Color.primary.opacity(0.07)).lineStyle(StrokeStyle(lineWidth: 26))
+                        .annotation(position: m.month > mid ? .leading : .trailing, alignment: .top, spacing: 10) {
+                            ChartTip(title: Fmt.date(m.month, "MMMM yyyy"), rows: [
+                                (Palette.money, kinds[0].0, Fmt.signed(m.move.new, model)),
+                                (Palette.mint, kinds[1].0, Fmt.signed(m.move.expansion, model)),
+                                (kinds[2].1, kinds[2].0, Fmt.signed(m.move.reactivation, model)),
+                                (Palette.warn, kinds[3].0, Fmt.signed(-m.move.contraction, model)),
+                                (Palette.loss, kinds[4].0, Fmt.signed(-m.move.churn, model)),
+                                (Color.primary.opacity(0.7), String(localized: "Net"), Fmt.signed(m.move.net, model)),
+                            ])
+                        }
+                }
             }
+            .modifier(HoverDate(hover: $hover))
             .chartForegroundStyleScale(domain: kinds.map(\.0), range: kinds.map(\.1))
             .chartLegend(position: .bottom, alignment: .leading)
             .modifier(MoneyAxis(model: model, months: model.dashboardMonths))
@@ -487,6 +504,7 @@ struct MovementsCard: View {
 struct RevenueCard: View {
     @ObservedObject var model: Model
     @State private var unit: Calendar.Component = .month
+    @State private var hover: Date?
     @Environment(\.isSnapshot) private var isSnapshot
 
     var body: some View {
@@ -505,11 +523,26 @@ struct RevenueCard: View {
                 .pickerStyle(.segmented).labelsHidden().fixedSize()
             }
         } content: {
-            Chart(buckets) { b in
-                BarMark(x: .value("Date", b.date, unit: unit), y: .value("Revenue", Double(b.value)))
-                    .foregroundStyle(by: .value("Project", b.name))
-                    .cornerRadius(2)
+            Chart {
+                ForEach(buckets) { b in
+                    BarMark(x: .value("Date", b.date, unit: unit), y: .value("Revenue", Double(b.value)))
+                        .foregroundStyle(by: .value("Project", b.name))
+                        .cornerRadius(2)
+                }
+                if let h = hover, let key = Calendar.current.dateInterval(of: unit, for: h)?.start {
+                    let here = buckets.filter { $0.date == key }
+                    let dates = Array(Set(buckets.map(\.date))).sorted()
+                    let mid = dates.isEmpty ? key : dates[dates.count / 2]
+                    RuleMark(x: .value("Date", key, unit: unit))
+                        .foregroundStyle(Color.primary.opacity(0.07)).lineStyle(StrokeStyle(lineWidth: unit == .day ? 8 : 26))
+                        .annotation(position: key > mid ? .leading : .trailing, alignment: .top, spacing: 10) {
+                            ChartTip(title: Fmt.date(key, unit == .month ? "MMMM yyyy" : "d MMM yyyy"),
+                                     rows: here.map { b in (color(accounts.first { $0.name == b.name } ?? accounts[0]), b.name, Fmt.money(b.value, model)) }
+                                        + [(Color.primary.opacity(0.7), String(localized: "Total"), Fmt.money(here.reduce(0) { $0 + $1.value }, model))])
+                        }
+                }
             }
+            .modifier(HoverDate(hover: $hover))
             .chartForegroundStyleScale(domain: accounts.map(\.name), range: accounts.map(color))
             .chartLegend(.hidden)
             .chartYAxis {
@@ -905,6 +938,28 @@ struct EndedTrialsCard: View {
 struct ProjectionChartCard: View {
     @ObservedObject var model: Model
     let p: Projection
+    @State private var hover: Date?
+
+    /// The day under the mouse.
+    private var picked: Projection.Day? {
+        guard let h = hover else { return nil }
+        return p.days.min { abs($0.date.addingTimeInterval(43200).timeIntervalSince(h)) < abs($1.date.addingTimeInterval(43200).timeIntervalSince(h)) }
+    }
+
+    private func tip(_ d: Projection.Day) -> ChartTip {
+        var rows: [(Color, String, String)] = []
+        if let v = d.real { rows.append((Palette.brand, String(localized: "Real MRR"), Fmt.money(v, model))) }
+        if d.real == nil || d.date == p.days.first(where: { $0.all != nil })?.date {
+            if let v = d.all { rows.append((Palette.brand.opacity(0.6), String(localized: "If every trial pays"), Fmt.money(v, model))) }
+            if let v = d.atRate { rows.append((Palette.mint, String(localized: "At the real conversion rate"), Fmt.money(v, model))) }
+        }
+        if d.real != nil {
+            rows.append((Palette.money, String(localized: "New paying customers"), "\(d.newPaying)"))
+            rows.append((Color(red: 0.62, green: 0.68, blue: 0.82), String(localized: "New trials"), "\(d.newTrials)"))
+            rows.append((Palette.loss, String(localized: "Trials cancelled"), "\(d.cancelledTrials)"))
+        }
+        return ChartTip(title: Fmt.date(d.date, "EEEE d MMM"), rows: rows)
+    }
 
     var body: some View {
         let today = Calendar.current.startOfDay(for: Date())
@@ -946,6 +1001,16 @@ struct ProjectionChartCard: View {
                             .foregroundStyle(Color.primary.opacity(0.25)).lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
                             .annotation(position: .top, alignment: .center) { Text("Today").font(.caption2).foregroundStyle(.secondary) }
                     }
+                    // Last, so the label sits above every line
+                    if let d = picked {
+                        let mid = first.addingTimeInterval(last.timeIntervalSince(first) / 2)
+                        RuleMark(x: .value("Hover", d.date))
+                            .foregroundStyle(Color.primary.opacity(0.3)).lineStyle(StrokeStyle(lineWidth: 1))
+                            .annotation(position: d.date > mid ? .leading : .trailing, alignment: .top, spacing: 8) { tip(d) }
+                        if let v = d.real { PointMark(x: .value("Day", d.date), y: .value("MRR", Double(v))).foregroundStyle(Palette.brand).symbolSize(40) }
+                        if d.real == nil, let v = d.all { PointMark(x: .value("Day", d.date), y: .value("MRR", Double(v))).foregroundStyle(Palette.brand).symbolSize(30) }
+                        if d.real == nil, let v = d.atRate { PointMark(x: .value("Day", d.date), y: .value("MRR", Double(v))).foregroundStyle(Palette.mint).symbolSize(30) }
+                    }
                 }
                 .chartXScale(domain: first...last)
                 .chartYAxis {
@@ -955,7 +1020,9 @@ struct ProjectionChartCard: View {
                     }
                 }
                 .chartXAxis(.hidden)
+                .modifier(HoverDate(hover: $hover))
                 .frame(height: 210)
+                .padding(.top, 12)
                 // The days' sign-ups under the curve, on the same days
                 Chart {
                     ForEach(p.days.filter { $0.real != nil }) { d in
@@ -963,7 +1030,11 @@ struct ProjectionChartCard: View {
                         if d.newTrials > 0 { BarMark(x: .value("Day", d.date, unit: .day), y: .value("Count", d.newTrials)).foregroundStyle(Color(red: 0.62, green: 0.68, blue: 0.82)) }
                         if d.cancelledTrials > 0 { BarMark(x: .value("Day", d.date, unit: .day), y: .value("Count", -d.cancelledTrials)).foregroundStyle(Palette.loss) }
                     }
+                    if let d = picked {
+                        RuleMark(x: .value("Hover", d.date.addingTimeInterval(43200))).foregroundStyle(Color.primary.opacity(0.3)).lineStyle(StrokeStyle(lineWidth: 1))
+                    }
                 }
+                .modifier(HoverDate(hover: $hover))
                 .chartXScale(domain: first...last)
                 .chartYAxis {
                     AxisMarks(position: .leading, values: .automatic(desiredCount: 3)) { v in
@@ -1028,5 +1099,52 @@ struct ProjectionChartCard: View {
         .padding(.horizontal, 10).padding(.vertical, 6)
         .background(tint.opacity(0.07), in: RoundedRectangle(cornerRadius: 9))
         .overlay(RoundedRectangle(cornerRadius: 9).stroke(tint.opacity(dashed ? 0.45 : 0.15), style: StrokeStyle(lineWidth: 1, dash: dashed ? [4, 3] : [])))
+    }
+}
+
+
+// MARK: Hover labels
+
+/// Follows the mouse over a chart and reports the date under it.
+struct HoverDate: ViewModifier {
+    @Binding var hover: Date?
+    func body(content: Content) -> some View {
+        content.chartOverlay { proxy in
+            GeometryReader { geo in
+                Rectangle().fill(.clear).contentShape(Rectangle())
+                    .onContinuousHover { phase in
+                        switch phase {
+                        case .active(let loc): hover = proxy.value(atX: loc.x - geo[proxy.plotAreaFrame].origin.x, as: Date.self)
+                        case .ended: hover = nil
+                        }
+                    }
+            }
+        }
+    }
+}
+
+/// The small card that shows the figures of the point under the mouse.
+struct ChartTip: View {
+    let title: String
+    let rows: [(Color, String, String)]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(title).font(.caption.weight(.semibold))
+            ForEach(rows.indices, id: \.self) { i in
+                HStack(spacing: 6) {
+                    RoundedRectangle(cornerRadius: 2).fill(rows[i].0).frame(width: 8, height: 8)
+                    Text(rows[i].1).foregroundStyle(.secondary)
+                    Spacer(minLength: 10)
+                    Text(rows[i].2).fontWeight(.semibold).monospacedDigit()
+                }
+                .font(.caption)
+            }
+        }
+        .padding(10)
+        .frame(minWidth: 170)
+        .background(Palette.surface, in: RoundedRectangle(cornerRadius: 9))
+        .overlay(RoundedRectangle(cornerRadius: 9).stroke(Palette.line))
+        .shadow(color: .black.opacity(0.12), radius: 8, y: 3)
     }
 }
