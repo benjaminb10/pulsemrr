@@ -73,6 +73,8 @@ struct PulseMRRApp: App {
                 if demo { Money.locale = Locale(identifier: "en_US") }
                 let m = demo ? Model.demo() : Model()
                 if !demo { await m.refreshStats(); await m.loadDashboard() }
+                // A snapshot picks projects without touching the ticks the app remembers
+                m.persist = false
                 if let project, m.active.indices.contains(project) { m.dashboardScope = m.active[project].id }
                 // `projects 0,2`: several projects ticked
                 if let j = args.firstIndex(of: "projects"), args.count > j + 1 {

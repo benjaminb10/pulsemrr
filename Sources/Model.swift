@@ -27,7 +27,13 @@ final class Model: ObservableObject {
     @Published var revenue: [UUID: [Date: [String: Int]]] = [:]
     @Published var failedInvoices: [UUID: [FailedInvoice]] = [:]
     /// The projects left out of the dashboard. Empty: all of them count, and a project added later is ticked.
-    @Published var dashboardExcluded: Set<UUID> = [] { didSet { rebuildDashboard() } }
+    /// Remembered from one opening to the next.
+    @Published var dashboardExcluded: Set<UUID> = Set((UserDefaults.standard.stringArray(forKey: "dashboardExcluded") ?? []).compactMap(UUID.init(uuidString:))) {
+        didSet {
+            if persist { UserDefaults.standard.set(dashboardExcluded.map(\.uuidString), forKey: "dashboardExcluded") }
+            rebuildDashboard()
+        }
+    }
     /// The ticked projects, in the accounts' order. Can be empty: then the dashboard asks for one.
     var dashboardAccounts: [Account] { active.filter { !dashboardExcluded.contains($0.id) } }
     var dashboardAll: Bool { dashboardAccounts.count == active.count }

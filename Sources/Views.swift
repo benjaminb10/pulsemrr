@@ -111,7 +111,8 @@ struct MenuPanel: View {
     }
 
     private func openDashboard(_ project: UUID?) {
-        model.dashboardScope = project
+        // The Dashboard card keeps the ticked projects; a project's row opens on that project
+        if let project { model.dashboardScope = project }
         openWindow(id: "dashboard")
         NSApp.activate(ignoringOtherApps: true)
     }
