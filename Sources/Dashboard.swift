@@ -106,6 +106,7 @@ struct DashboardContent: View {
             header
             KpiGrid(model: model)
             if project == nil { GoalCard(model: model) }
+            ProjectionSection(model: model)
             MrrChartCard(model: model)
             Grid(horizontalSpacing: 18, verticalSpacing: 18) {
                 GridRow {
@@ -745,5 +746,232 @@ struct ProjectsCard: View {
                 }
             }
         }
+    }
+}
+
+// MARK: Trials and projection
+
+/// The real MRR of the last 30 days and where the running trials take it, with the side figures.
+struct ProjectionSection: View {
+    @ObservedObject var model: Model
+
+    var body: some View {
+        let p = model.projection
+        HStack(alignment: .top, spacing: 18) {
+            ProjectionChartCard(model: model, p: p)
+            VStack(spacing: 14) {
+                SideStat(title: String(localized: "Projection at the real conversion rate"), value: Fmt.money(p.projected, model, compact: false),
+                         note: p.rate.map { String(format: String(localized: "%@ + %@ of %@ in trials"), Fmt.money(p.real, model), Fmt.percent($0, digits: 0), Fmt.money(p.trials, model)) }
+                            ?? String(localized: "No trial has ended yet"),
+                         tint: Palette.brand)
+                HStack(spacing: 14) {
+                    SideStat(title: String(localized: "In trial"), value: Fmt.money(p.trials, model),
+                             note: Fmt.count(p.trialCount, "%lld trial", "%lld trials") + (p.trialsCancelling > 0 ? " · " + String(format: String(localized: "%lld cancelling"), p.trialsCancelling) : ""))
+                    SideStat(title: String(localized: "At risk"), value: Fmt.money(p.atRisk, model),
+                             note: Fmt.count(p.atRiskCount, "%lld failed payment", "%lld failed payments"), tint: p.atRisk > 0 ? Palette.warn : nil)
+                }
+                EndedTrialsCard(model: model, p: p)
+            }
+            .frame(width: 320)
+        }
+    }
+}
+
+struct SideStat: View {
+    let title: String
+    let value: String
+    let note: String
+    var tint: Color?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(title).font(.callout.weight(.medium)).foregroundStyle(.secondary).lineLimit(2)
+            Text(value).font(.system(size: 22, weight: .semibold, design: .rounded)).monospacedDigit()
+                .foregroundStyle(tint ?? .primary).lineLimit(1).minimumScaleFactor(0.7)
+            Text(note).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Palette.surface, in: RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Palette.line))
+    }
+}
+
+/// Ended trials, one outcome per customer: paying, payment failed, cancelled.
+struct EndedTrialsCard: View {
+    @ObservedObject var model: Model
+    let p: Projection
+
+    var body: some View {
+        let parts: [(String, Int, Color)] = [
+            (String(localized: "Paying"), p.endedPaying, Palette.money),
+            (String(localized: "Payment failed"), p.endedFailed, Palette.warn),
+            (String(localized: "Cancelled"), p.endedCancelled, Palette.loss),
+        ]
+        VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(Fmt.count(p.ended, "Ended trials (%lld customer)", "Ended trials (%lld customers)")).font(.callout.weight(.medium)).foregroundStyle(.secondary)
+                Text("Where they stand today. The projection uses this paying share.").font(.caption).foregroundStyle(.tertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            GeometryReader { geo in
+                HStack(spacing: 2) {
+                    ForEach(parts.indices, id: \.self) { i in
+                        if parts[i].1 > 0 {
+                            Rectangle().fill(parts[i].2).frame(width: max(2, geo.size.width * CGFloat(parts[i].1) / CGFloat(max(p.ended, 1)) - 2))
+                        }
+                    }
+                }
+                .clipShape(Capsule())
+            }
+            .frame(height: 8)
+            .background(Capsule().fill(Palette.line))
+            VStack(spacing: 5) {
+                ForEach(parts.indices, id: \.self) { i in
+                    HStack(spacing: 7) {
+                        Circle().fill(parts[i].2).frame(width: 7, height: 7)
+                        Text(parts[i].0)
+                        Spacer()
+                        Text("\(parts[i].1)").fontWeight(.semibold).monospacedDigit()
+                        Text(Fmt.percent(p.ended > 0 ? Double(parts[i].1) / Double(p.ended) : nil, digits: 0))
+                            .foregroundStyle(.secondary).monospacedDigit().frame(width: 40, alignment: .trailing)
+                    }
+                    .font(.callout)
+                }
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Palette.surface, in: RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Palette.line))
+    }
+}
+
+struct ProjectionChartCard: View {
+    @ObservedObject var model: Model
+    let p: Projection
+
+    var body: some View {
+        let today = Calendar.current.startOfDay(for: Date())
+        let first = p.days.first?.date ?? today
+        let last = (p.days.last?.date ?? today).addingTimeInterval(86400)
+        Card(title: String(localized: "Real MRR and trials"), subtitle: String(localized: "Last 30 days, and where the running trials lead")) {
+            HStack(spacing: 8) {
+                if let ago = p.real7Ago { pill(Fmt.signed(p.real - ago, model), String(localized: "7 days"), (p.real - ago) >= 0 ? Palette.money : Palette.loss) }
+                if let all = p.allAtHorizon, let h = p.horizon {
+                    pill(Fmt.money(all, model), String(format: String(localized: "by %@ if every trial pays"), Fmt.date(h, "d MMM")), Palette.brand, dashed: true)
+                }
+            }
+        } content: {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(Fmt.money(p.real, model, compact: false)).font(.system(size: 28, weight: .semibold, design: .rounded)).monospacedDigit()
+                    Text("real MRR, failed payments and trials left out").font(.callout).foregroundStyle(.secondary)
+                }
+                legend
+                Chart {
+                    ForEach(p.days.filter { $0.real != nil }) { d in
+                        AreaMark(x: .value("Day", d.date), y: .value("MRR", Double(d.real!)))
+                            .foregroundStyle(LinearGradient(colors: [Palette.brand.opacity(0.18), Palette.brand.opacity(0)], startPoint: .top, endPoint: .bottom))
+                        LineMark(x: .value("Day", d.date), y: .value("MRR", Double(d.real!)), series: .value("Line", "real"))
+                            .foregroundStyle(Palette.brand).lineStyle(StrokeStyle(lineWidth: 2))
+                    }
+                    ForEach(p.days.filter { $0.all != nil }) { d in
+                        LineMark(x: .value("Day", d.date), y: .value("MRR", Double(d.all!)), series: .value("Line", "all"))
+                            .foregroundStyle(Palette.brand).lineStyle(StrokeStyle(lineWidth: 1.6, dash: [6, 4]))
+                            .interpolationMethod(.stepEnd)
+                    }
+                    ForEach(p.days.filter { $0.atRate != nil }) { d in
+                        LineMark(x: .value("Day", d.date), y: .value("MRR", Double(d.atRate!)), series: .value("Line", "rate"))
+                            .foregroundStyle(Palette.mint).lineStyle(StrokeStyle(lineWidth: 1.6, dash: [2, 3]))
+                            .interpolationMethod(.stepEnd)
+                    }
+                    if p.hasFuture {
+                        RuleMark(x: .value("Today", today))
+                            .foregroundStyle(Color.primary.opacity(0.25)).lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
+                            .annotation(position: .top, alignment: .center) { Text("Today").font(.caption2).foregroundStyle(.secondary) }
+                    }
+                }
+                .chartXScale(domain: first...last)
+                .chartYAxis {
+                    AxisMarks(position: .leading) { v in
+                        AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5)).foregroundStyle(Palette.line)
+                        AxisValueLabel { if let x = v.as(Double.self) { Text(Fmt.axis(Int(x), model)) } }
+                    }
+                }
+                .chartXAxis(.hidden)
+                .frame(height: 210)
+                // The days' sign-ups under the curve, on the same days
+                Chart {
+                    ForEach(p.days.filter { $0.real != nil }) { d in
+                        if d.newPaying > 0 { BarMark(x: .value("Day", d.date, unit: .day), y: .value("Count", d.newPaying)).foregroundStyle(Palette.money) }
+                        if d.newTrials > 0 { BarMark(x: .value("Day", d.date, unit: .day), y: .value("Count", d.newTrials)).foregroundStyle(Color(red: 0.62, green: 0.68, blue: 0.82)) }
+                        if d.cancelledTrials > 0 { BarMark(x: .value("Day", d.date, unit: .day), y: .value("Count", -d.cancelledTrials)).foregroundStyle(Palette.loss) }
+                    }
+                }
+                .chartXScale(domain: first...last)
+                .chartYAxis {
+                    AxisMarks(position: .leading, values: .automatic(desiredCount: 3)) { v in
+                        AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5)).foregroundStyle(Palette.line)
+                        AxisValueLabel { if let x = v.as(Int.self) { Text("\(abs(x))") } }
+                    }
+                }
+                .chartXAxis {
+                    AxisMarks(values: .stride(by: .day, count: 7)) { _ in
+                        AxisValueLabel(format: .dateTime.day().month(.abbreviated))
+                    }
+                }
+                .frame(height: 80)
+                .padding(.top, 10)
+                barsLegend
+            }
+        }
+    }
+
+    private var legend: some View {
+        HStack(spacing: 14) {
+            swatch(Palette.brand, dash: nil, String(localized: "Real MRR"))
+            if p.hasFuture {
+                swatch(Palette.brand, dash: [6, 4], String(localized: "If every trial pays"))
+                swatch(Palette.mint, dash: [2, 3], String(localized: "At the real conversion rate"))
+            }
+        }
+        .font(.caption).foregroundStyle(.secondary)
+    }
+
+    private var barsLegend: some View {
+        let new = p.days.reduce(0) { $0 + $1.newTrials }, paying = p.days.reduce(0) { $0 + $1.newPaying }, cancelled = p.days.reduce(0) { $0 + $1.cancelledTrials }
+        return HStack(spacing: 14) {
+            dot(Palette.money, String(format: String(localized: "New paying customers (%lld)"), paying))
+            dot(Color(red: 0.62, green: 0.68, blue: 0.82), String(format: String(localized: "New trials (%lld)"), new))
+            dot(Palette.loss, String(format: String(localized: "Trials cancelled (%lld)"), cancelled))
+        }
+        .font(.caption).foregroundStyle(.secondary)
+    }
+
+    private func swatch(_ c: Color, dash: [CGFloat]?, _ label: String) -> some View {
+        HStack(spacing: 5) {
+            Path { $0.move(to: CGPoint(x: 0, y: 4)); $0.addLine(to: CGPoint(x: 18, y: 4)) }
+                .stroke(c, style: StrokeStyle(lineWidth: 2, dash: dash ?? []))
+                .frame(width: 18, height: 8)
+            Text(label)
+        }
+    }
+
+    private func dot(_ c: Color, _ label: String) -> some View {
+        HStack(spacing: 5) {
+            RoundedRectangle(cornerRadius: 2).fill(c).frame(width: 9, height: 9)
+            Text(label)
+        }
+    }
+
+    private func pill(_ value: String, _ label: String, _ tint: Color, dashed: Bool = false) -> some View {
+        VStack(alignment: .trailing, spacing: 1) {
+            Text(value).font(.callout.weight(.semibold)).monospacedDigit().foregroundStyle(tint)
+            Text(label).font(.caption2).foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 10).padding(.vertical, 6)
+        .background(tint.opacity(0.07), in: RoundedRectangle(cornerRadius: 9))
+        .overlay(RoundedRectangle(cornerRadius: 9).stroke(tint.opacity(dashed ? 0.45 : 0.15), style: StrokeStyle(lineWidth: 1, dash: dashed ? [4, 3] : [])))
     }
 }

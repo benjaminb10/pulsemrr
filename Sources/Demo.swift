@@ -93,13 +93,14 @@ extension Model {
                     if trials[ai] && rand() > 0.42 {
                         // Trial that never paid
                         facts.append(SubFact(id: "sub_\(facts.count)", customer: "cus_\(ai)_\(facts.count)", who: nil, currency: "usd", monthly: price,
-                                             start: trialEnd!, end: trialEnd, trialEnd: trialEnd, status: "canceled"))
+                                             start: trialEnd!, end: trialEnd, trialEnd: trialEnd, status: trialEnd! > now ? "trialing" : "canceled",
+                                             created: created, canceledAt: created.addingTimeInterval(rand() * 13 * day), cancelAt: trialEnd))
                         continue
                     }
                     let start = trialEnd ?? created
                     guard start < now else {
                         facts.append(SubFact(id: "sub_\(facts.count)", customer: "cus_\(ai)_\(facts.count)", who: nil, currency: "usd", monthly: price,
-                                             start: start, end: nil, trialEnd: trialEnd, status: "trialing"))
+                                             start: start, end: nil, trialEnd: trialEnd, status: "trialing", created: created))
                         continue
                     }
                     // Months paid before leaving, from the monthly churn rate
@@ -109,7 +110,7 @@ extension Model {
                     let end: Date? = endAt < now ? endAt : nil
                     let who = names[Int(rand() * 20)] + " " + last[Int(rand() * 20)]
                     facts.append(SubFact(id: "sub_\(facts.count)", customer: "cus_\(ai)_\(facts.count)", who: who, currency: "usd", monthly: price,
-                                         start: start, end: end, trialEnd: trialEnd, status: end == nil ? "active" : "canceled"))
+                                         start: start, end: end, trialEnd: trialEnd, status: end == nil ? "active" : "canceled", created: created))
                     var t = start
                     while t < (end ?? now) {
                         let d = Calendar.current.startOfDay(for: t)

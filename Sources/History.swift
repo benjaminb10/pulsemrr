@@ -19,6 +19,12 @@ struct SubFact: Codable, Hashable {
     let end: Date?
     let trialEnd: Date?
     let status: String
+    /// When the subscription was created (a trial's start).
+    var created: Date? = nil
+    /// When it was cancelled (the click, not the end).
+    var canceledAt: Date? = nil
+    /// When a scheduled cancellation takes effect, if one is set.
+    var cancelAt: Date? = nil
 
     func pays(at t: Date) -> Bool { start <= t && (end.map { t < $0 } ?? true) }
     /// Paid for at least a day: a trial cancelled before its end never did.
@@ -57,6 +63,7 @@ extension StripeClient {
         let items = (s["items"] as? [String: Any])?["data"] as? [[String: Any]] ?? []
         // Newer API versions moved the billing period onto the items
         let periodStart = date(s["current_period_start"]) ?? date(items.first?["current_period_start"])
+        let periodEnd = date(s["current_period_end"]) ?? date(items.first?["current_period_end"])
         let trialEnd = date(s["trial_end"])
         let started = date(s["start_date"]) ?? date(s["created"]) ?? Date()
         let start = max(started, trialEnd ?? started)
@@ -69,7 +76,9 @@ extension StripeClient {
         return SubFact(id: s["id"] as? String ?? "", customer: cus?["id"] as? String ?? (s["customer"] as? String ?? ""),
                        who: person(name: cus?["name"] as? String, email: cus?["email"] as? String),
                        email: (cus?["email"] as? String)?.lowercased().trimmingCharacters(in: .whitespaces),
-                       currency: top.key, monthly: top.value, start: start, end: end, trialEnd: trialEnd, status: status)
+                       currency: top.key, monthly: top.value, start: start, end: end, trialEnd: trialEnd, status: status,
+                       created: started, canceledAt: date(s["canceled_at"]),
+                       cancelAt: date(s["cancel_at"]) ?? (s["cancel_at_period_end"] as? Bool == true ? periodEnd : nil))
     }
 
     /// Invoices of the last `days` days that failed at least once: still retrying, paid in the end, or given up.
@@ -248,5 +257,106 @@ enum Analytics {
             } else if y > x { m.expansion += y - x } else if x > y { m.contraction += x - y }
         }
         return m
+    }
+}
+
+/// Trials and where they lead, the way the BeReach and Viewlify admin boards read them: the real MRR day by day,
+/// the days' new trials, new payers and cancelled trials, then the coming days until the last running trial ends,
+/// once if every trial pays and once at each project's real conversion rate. Paying subscriptions set to cancel
+/// stop counting on their date.
+struct Projection {
+    struct Day: Identifiable {
+        let date: Date
+        var real: Int?
+        var all: Int?
+        var atRate: Int?
+        var newTrials = 0
+        var newPaying = 0
+        var cancelledTrials = 0
+        var id: Date { date }
+    }
+
+    var days: [Day] = []
+    var real = 0
+    var real7Ago: Int?
+    var trials = 0
+    var trialCount = 0
+    var trialsCancelling = 0
+    var atRisk = 0
+    var atRiskCount = 0
+    /// Real MRR + each project's running trials x its own conversion rate.
+    var projected = 0
+    var ended = 0, endedPaying = 0, endedFailed = 0, endedCancelled = 0
+    var rate: Double? { ended > 0 ? Double(endedPaying) / Double(ended) : nil }
+    /// The last running trial's end, and the MRR then if every trial pays.
+    var horizon: Date?
+    var allAtHorizon: Int?
+    var hasFuture: Bool { days.contains { $0.all != nil } }
+
+    static func build(accounts: [Account], facts: [UUID: [SubFact]], snapshots: [UUID: MrrSnapshot],
+                      convert: (Int, String) -> Int, now: Date = Date(), back: Int = 30, maxAhead: Int = 60) -> Projection {
+        let cal = Calendar.current
+        let day: TimeInterval = 86400
+        var p = Projection()
+        let today = cal.startOfDay(for: now)
+        func endOfDay(_ d: Date) -> Date { min(now, cal.date(byAdding: .day, value: 1, to: d)!.addingTimeInterval(-1)) }
+
+        struct Item { let account: UUID; let monthly: Int; let fact: SubFact }
+        let items = accounts.flatMap { a in (facts[a.id] ?? []).map { Item(account: a.id, monthly: convert($0.monthly, $0.currency), fact: $0) } }
+        let rates = Dictionary(uniqueKeysWithValues: accounts.map { ($0.id, snapshots[$0.id]?.conversion ?? 0) })
+
+        // The past, one point a day
+        for k in stride(from: back, through: 0, by: -1) {
+            let d = cal.date(byAdding: .day, value: -k, to: today)!
+            let t = k == 0 ? now : endOfDay(d)
+            var row = Day(date: d)
+            row.real = items.filter { $0.fact.pays(at: t) }.reduce(0) { $0 + $1.monthly }
+            for it in items {
+                if it.fact.trialEnd != nil, let c = it.fact.created, cal.isDate(c, inSameDayAs: d) { row.newTrials += 1 }
+                if it.fact.paidOnce, cal.isDate(it.fact.start, inSameDayAs: d), it.fact.start <= now { row.newPaying += 1 }
+                if let te = it.fact.trialEnd, let c = it.fact.canceledAt, c <= te, cal.isDate(c, inSameDayAs: d) { row.cancelledTrials += 1 }
+            }
+            p.days.append(row)
+        }
+        p.real = p.days.last?.real ?? 0
+        if p.days.count > 7 { p.real7Ago = p.days[p.days.count - 8].real }
+
+        // Running trials that aren't set to cancel, and the ones that are
+        let trialing = items.filter { $0.fact.status == "trialing" }
+        let live = trialing.filter { $0.fact.cancelAt == nil }
+        p.trials = live.reduce(0) { $0 + $1.monthly }
+        p.trialCount = live.count
+        p.trialsCancelling = trialing.count - live.count
+        let paying = items.filter { $0.fact.pays(at: now) }
+        p.projected = p.real + Int(live.reduce(0.0) { $0 + Double($1.monthly) * (rates[$1.account] ?? 0) }.rounded())
+
+        for a in accounts {
+            guard let s = snapshots[a.id] else { continue }
+            p.atRisk += s.atRisk.reduce(0) { $0 + convert($1.value, $1.key) }
+            p.atRiskCount += s.atRiskCount
+            p.ended += s.trialsEnded; p.endedPaying += s.trialsPaying
+            p.endedFailed += s.trialsFailed; p.endedCancelled += s.trialsCancelled
+        }
+
+        // The future, to the last running trial's end
+        let ends = live.compactMap(\.fact.trialEnd).filter { $0 > now }
+        if let last = ends.max() {
+            let horizon = min(last, now.addingTimeInterval(Double(maxAhead) * day))
+            p.horizon = horizon
+            // Today's point opens the dashed lines, so they leave from the real curve
+            if let i = p.days.indices.last { p.days[i].all = p.real; p.days[i].atRate = p.real }
+            var d = cal.date(byAdding: .day, value: 1, to: today)!
+            while d <= horizon {
+                let t = cal.date(byAdding: .day, value: 1, to: d)!.addingTimeInterval(-1)
+                let base = paying.filter { $0.fact.cancelAt.map { t < $0 } ?? true }.reduce(0) { $0 + $1.monthly }
+                let joined = live.filter { ($0.fact.trialEnd ?? .distantFuture) <= t }
+                let all = base + joined.reduce(0) { $0 + $1.monthly }
+                let atRate = base + Int(joined.reduce(0.0) { $0 + Double($1.monthly) * (rates[$1.account] ?? 0) }.rounded())
+                p.days.append(Day(date: d, all: all, atRate: atRate))
+                d = cal.date(byAdding: .day, value: 1, to: d)!
+            }
+            p.allAtHorizon = p.days.last?.all
+        }
+        return p
     }
 }

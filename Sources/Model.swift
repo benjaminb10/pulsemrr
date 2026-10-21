@@ -30,6 +30,7 @@ final class Model: ObservableObject {
     @Published var dashboardScope: UUID? { didSet { rebuildDashboard() } }
     @Published var dashboardMonths = 12 { didSet { rebuildDashboard() } }
     @Published var dashboard = DashboardData()
+    @Published var projection = Projection()
     @Published var dashboardLoading = false
     @Published var dashboardUpdated: Date?
     var dashboardOpen = false
@@ -359,6 +360,7 @@ final class Model: ObservableObject {
         let scope = dashboardScope.flatMap { id in active.first { $0.id == id } }
         dashboard = Analytics.build(accounts: scope.map { [$0] } ?? active, all: active, facts: facts, revenue: revenue,
                                     failed: failedInvoices, months: dashboardMonths, convert: convert)
+        projection = Projection.build(accounts: scope.map { [$0] } ?? active, facts: facts, snapshots: mrrDetail, convert: convert)
     }
 
     /// ECB reference rates (frankfurter.app, free, no key), refreshed every 6 hours.
