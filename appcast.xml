@@ -4,10 +4,10 @@
     <title>PulseMRR</title>
     <link>https://github.com/benjaminb10/pulsemrr</link>
     <item>
-      <title>PulseMRR 0.9.5</title>
-      <pubDate>Wed, 21 Oct 2026 23:14:05 +0000</pubDate>
-      <sparkle:version>29</sparkle:version>
-      <sparkle:shortVersionString>0.9.5</sparkle:shortVersionString>
+      <title>PulseMRR 0.9.6</title>
+      <pubDate>Wed, 21 Oct 2026 23:31:40 +0000</pubDate>
+      <sparkle:version>31</sparkle:version>
+      <sparkle:shortVersionString>0.9.6</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
       <description><![CDATA[
 <style>
@@ -18,14 +18,10 @@
   code { font: 12px ui-monospace, monospace; background: rgba(127,127,127,.15); padding: 1px 4px; border-radius: 4px; }
   a { color: #594FE0; }
 </style>
-<h2 dir="auto">Ticking projects</h2>
-<ul dir="auto">
-<li><strong>All projects</strong> now unticks everything when it's all ticked, and ticks everything otherwise. It shows a dash when only some projects are ticked.</li>
-<li>With nothing ticked, the dashboard asks you to tick at least one project.</li>
-<li>To look at one project alone: untick All projects, then tick it. The Only button is gone.</li>
-</ul>
+<h2 dir="auto">Your projects, remembered</h2>
+<p dir="auto">The projects you tick in the dashboard's sidebar are kept from one opening to the next, even after a restart. The Dashboard card in the menu bar panel opens on that same selection; clicking a project in the panel still opens the dashboard on that project.</p>
       ]]></description>
-      <enclosure url="https://github.com/benjaminb10/pulsemrr/releases/download/v0.9.5/PulseMRR.dmg" type="application/octet-stream" sparkle:edSignature="M2j9JnZKoD3uGXFiU48VlEV8WVdQm7sAAid/myZSvOtSGVU8H0exkjmoyMb1WZsgNFqsptOZaMQaMUwSSUeCCg==" length="3706341" />
+      <enclosure url="https://github.com/benjaminb10/pulsemrr/releases/download/v0.9.6/PulseMRR.dmg" type="application/octet-stream" sparkle:edSignature="cUn5AxjxkMo3/0CnTTP5ReOLf4bOtCVxElzgTOwTCKEo90usRHDdlB7UTo9Qf/XPOAyR5dFK7AdD1jKe3FmEAQ==" length="3709618" />
     </item>
   </channel>
 </rss>
