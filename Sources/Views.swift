@@ -16,30 +16,39 @@ struct MenuPanel: View {
     @Environment(\.isSnapshot) private var isSnapshot
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        // The dashboard's look: white cards on a light grey background
+        VStack(alignment: .leading, spacing: 10) {
             if model.accounts.isEmpty {
-                empty.padding(18)
+                empty.padding(16).frame(maxWidth: .infinity, alignment: .leading).panelCard()
             } else {
-                header.padding(.horizontal, 18).padding(.top, 16).padding(.bottom, 14)
-                if !model.todos.isEmpty { TodoLine(model: model).padding(.horizontal, 10).padding(.bottom, 8) }
-                Hairline()
+                header.padding(16).panelCard()
+                if !model.todos.isEmpty { TodoLine(model: model) }
                 VStack(spacing: 0) {
+                    HStack {
+                        Text("Projects").font(.subheadline.weight(.semibold))
+                        Spacer()
+                        Text("MRR").font(.caption).foregroundStyle(.tertiary)
+                    }
+                    .padding(.horizontal, 14).padding(.top, 12).padding(.bottom, 4)
                     ForEach(Array(model.active.enumerated()), id: \.element.id) { i, a in
-                        if i > 0 { Hairline().padding(.leading, 52) }
+                        if i > 0 { Hairline().padding(.leading, 54) }
                         ProjectRow(model: model, account: a)
                             .contentShape(Rectangle())
                             .onTapGesture { openDashboard(a.id) }
+                            .help(String(localized: "Open this project in the dashboard"))
                     }
                 }
-                Hairline()
-                ActivityList(model: model).padding(.top, 10).padding(.bottom, 6)
+                .padding(.bottom, 4)
+                .panelCard()
+                ActivityList(model: model).padding(.top, 12).padding(.bottom, 6).panelCard()
             }
-            Hairline()
-            footer.padding(.horizontal, 14).padding(.vertical, 9)
+            footer.padding(.horizontal, 6).padding(.top, 2)
         }
+        .padding(10)
         .frame(width: 400)
+        .task { if !isSnapshot { await model.refreshNotificationsAllowed() } }
         // A plain, opaque background: the menu's translucent material greys everything out.
-        .background(Palette.surface)
+        .background(Palette.canvas)
     }
 
     private var empty: some View {
@@ -52,20 +61,29 @@ struct MenuPanel: View {
 
     /// One figure that matters, and one quiet line of context under it.
     private var header: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("Today").font(.caption.weight(.medium)).foregroundStyle(.secondary)
-            Amount(model: model, sums: model.takings(0), font: .system(size: 34, weight: .bold, design: .rounded))
-            HStack(spacing: 6) {
-                Text("Yesterday"); Amount(model: model, sums: model.takings(1), font: .callout.weight(.medium), compact: true, approxMark: false)
-                Text("·").foregroundStyle(.tertiary)
-                Image(systemName: "person.fill").font(.system(size: 10))
-                Text("\(model.newCustomers(0))").fontWeight(.medium)
-                    .help(String(localized: "People who became Stripe customers today, trials included."))
-                Text("·").foregroundStyle(.tertiary)
-                Text("MRR"); Amount(model: model, sums: model.mrrTotal, font: .callout.weight(.medium), compact: true, approxMark: false)
+        VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Today").font(.callout.weight(.medium)).foregroundStyle(.secondary)
+                Amount(model: model, sums: model.takings(0), font: .system(size: 32, weight: .semibold, design: .rounded))
             }
-            .font(.callout).foregroundStyle(.secondary).monospacedDigit().lineLimit(1)
+            HStack(spacing: 0) {
+                stat("Yesterday") { Amount(model: model, sums: model.takings(1), font: .callout.weight(.semibold), compact: true, approxMark: false) }
+                Rectangle().fill(Palette.line).frame(width: 1, height: 28).padding(.horizontal, 12)
+                stat("New customers") { Text("\(model.newCustomers(0))").font(.callout.weight(.semibold)).monospacedDigit() }
+                    .help(String(localized: "People who became Stripe customers today, trials included."))
+                Rectangle().fill(Palette.line).frame(width: 1, height: 28).padding(.horizontal, 12)
+                stat("MRR") { Amount(model: model, sums: model.mrrTotal, font: .callout.weight(.semibold), compact: true, approxMark: false) }
+            }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func stat<V: View>(_ label: LocalizedStringKey, @ViewBuilder _ value: () -> V) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+            value()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     @ViewBuilder private var footer: some View {
@@ -85,7 +103,9 @@ struct MenuPanel: View {
             .foregroundStyle(.secondary)
             .help("Open the dashboard: MRR over time, churn, best customers")
             if !model.notificationsAllowed {
-                Image(systemName: "bell.slash").foregroundStyle(.orange).help("Notifications are off: System Settings › Notifications › PulseMRR")
+                Image(systemName: "bell.slash").foregroundStyle(.orange)
+                    .onTapGesture { model.openNotificationSettings() }
+                    .help("Notifications are off for PulseMRR. Click to turn them on in System Settings.")
             }
             Image(systemName: "gearshape").onTapGesture { openSettings() }.help("Settings")
             Image(systemName: "power").onTapGesture { NSApp.terminate(nil) }.help("Quit PulseMRR")
@@ -102,6 +122,14 @@ struct MenuPanel: View {
         model.dashboardScope = project
         openWindow(id: "dashboard")
         NSApp.activate(ignoringOtherApps: true)
+    }
+}
+
+extension View {
+    /// The dashboard's card: white, rounded, with a hairline border.
+    func panelCard() -> some View {
+        background(Palette.surface, in: RoundedRectangle(cornerRadius: 12))
+            .overlay(RoundedRectangle(cornerRadius: 12).stroke(Palette.line))
     }
 }
 
@@ -137,7 +165,7 @@ struct TodoLine: View {
                         AccountIcon(model: model, account: t.account, size: 16)
                         Text(t.who ?? t.title).lineLimit(1)
                         Spacer(minLength: 6)
-                        Text(Money.format(t.amount, t.currency, compact: true)).monospacedDigit().foregroundStyle(.secondary)
+                        Text(Money.format(model.convert(t.amount, t.currency), model.currency, compact: true)).monospacedDigit().foregroundStyle(.secondary)
                         Image(systemName: "arrow.up.right").font(.system(size: 9)).foregroundStyle(.tertiary)
                     }
                     .font(.caption)
@@ -148,7 +176,10 @@ struct TodoLine: View {
                 }
             }
         }
-        .background(Palette.loss.opacity(0.06), in: RoundedRectangle(cornerRadius: 9))
+        .padding(4)
+        .background(Palette.loss.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
+        .background(Palette.surface, in: RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Palette.loss.opacity(0.18)))
     }
 }
 
@@ -397,9 +428,9 @@ struct ActivityList: View {
     var body: some View {
         let items = Array(model.feed.prefix(5))
         VStack(alignment: .leading, spacing: 0) {
-            Text("Latest").font(.caption.weight(.medium)).foregroundStyle(.secondary).padding(.horizontal, 18).padding(.bottom, 4)
+            Text("Latest").font(.subheadline.weight(.semibold)).padding(.horizontal, 14).padding(.bottom, 6)
             if items.isEmpty {
-                Text("Nothing in the last 7 days.").font(.callout).foregroundStyle(.tertiary).padding(.horizontal, 18).padding(.vertical, 6)
+                Text("Nothing in the last 7 days.").font(.callout).foregroundStyle(.tertiary).padding(.horizontal, 14).padding(.vertical, 6)
             }
             ForEach(items) { act in ActivityRow(model: model, act: act) }
         }
@@ -432,11 +463,12 @@ struct ActivityRow: View {
             Spacer(minLength: 6)
             if let amount = act.amount, let cur = act.currency {
                 let sign = [.sale, .newSubscriber, .trialConverted].contains(act.kind) ? "+" : (tone == Palette.loss ? "−" : "")
-                Text(sign + Money.format(amount, cur, compact: true)).font(.callout.weight(.medium)).monospacedDigit()
+                // In the display currency, like everything else in the panel
+                Text(sign + Money.format(model.convert(amount, cur), model.currency, compact: true)).font(.callout.weight(.medium)).monospacedDigit()
                     .foregroundStyle(tone == Color.secondary ? Color.secondary : tone)
             }
         }
-        .padding(.horizontal, 18).padding(.vertical, 5)
+        .padding(.horizontal, 14).padding(.vertical, 5)
         .background(hover ? Color.primary.opacity(0.04) : .clear)
         .contentShape(Rectangle())
         .onHover { hover = $0 }

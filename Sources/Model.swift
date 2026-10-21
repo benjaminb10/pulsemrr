@@ -583,6 +583,12 @@ final class Model: ObservableObject {
         return "authorization=\(auth) style=\(style) sound=\(st.soundSetting == .enabled) center=\(st.notificationCenterSetting == .enabled)"
     }
 
+    /// Whether macOS lets PulseMRR show notifications, read again each time the panel opens (you may have changed it).
+    func refreshNotificationsAllowed() async {
+        let st = await UNUserNotificationCenter.current().notificationSettings()
+        notificationsAllowed = st.authorizationStatus != .denied
+    }
+
     /// Opens PulseMRR's page in System Settings › Notifications.
     func openNotificationSettings() {
         let urls = ["x-apple.systempreferences:com.apple.Notifications-Settings.extension?id=app.pulsemrr",
