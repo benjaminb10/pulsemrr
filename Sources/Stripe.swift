@@ -85,7 +85,7 @@ struct StripeClient {
     static func person(name: String?, email: String?) -> String? {
         let n = name?.trimmingCharacters(in: .whitespaces), e = email?.trimmingCharacters(in: .whitespaces)
         switch (n?.isEmpty == false ? n : nil, e?.isEmpty == false ? e : nil) {
-        case let (n?, e?): return "\(n) (\(e))"
+        case let (n?, _?): return n
         case let (n?, nil): return n
         case let (nil, e?): return e
         default: return nil
@@ -106,31 +106,97 @@ struct StripeClient {
         return out
     }
 
-    /// Monthly recurring revenue of the active subscriptions, per currency (trials don't count yet).
-    func mrr() async throws -> (sums: [String: Int], count: Int) {
-        let subs = try await list("subscriptions", [("status", "active")], max: 5000)
-        var sums: [String: Int] = [:]
-        for s in subs {
-            let items = (s["items"] as? [String: Any])?["data"] as? [[String: Any]] ?? []
-            for item in items {
-                guard let price = item["price"] as? [String: Any],
-                      let recurring = price["recurring"] as? [String: Any],
-                      let amount = price["unit_amount"] as? Int else { continue }
-                let qty = item["quantity"] as? Int ?? 1
-                let count = Double(recurring["interval_count"] as? Int ?? 1)
-                let perMonth: Double
-                switch recurring["interval"] as? String {
-                case "day": perMonth = 30.0 / count
-                case "week": perMonth = 52.0 / 12.0 / count
-                case "year": perMonth = 1.0 / 12.0 / count
-                default: perMonth = 1.0 / count
-                }
-                let cur = price["currency"] as? String ?? "eur"
-                sums[cur, default: 0] += Int((Double(amount * qty) * perMonth).rounded())
-            }
+    /// MRR the way a founder reads it, not Stripe's headline figure (same rules as Viewlify's admin):
+    /// real = active subscriptions only; at risk = past_due (payment failed, Stripe still retrying);
+    /// trials = trialing and not set to cancel; conversion = paying share of ended trials, one per customer;
+    /// projected = real + trials x conversion. Deleted customers are test fixtures and never count.
+    func mrr() async throws -> MrrSnapshot {
+        let subs = try await list("subscriptions", [("status", "all"), ("expand[]", "data.customer")], max: 10000)
+        let now = Int(Date().timeIntervalSince1970)
+        func isTest(_ s: [String: Any]) -> Bool { (s["customer"] as? [String: Any])?["deleted"] as? Bool == true }
+        let real = subs.filter { ($0["status"] as? String) == "active" && !isTest($0) }
+        var snap = MrrSnapshot()
+        for s in real {
+            add(&snap.real, s)
+            if s["cancel_at_period_end"] as? Bool == true { add(&snap.leaving, s); snap.leavingCount += 1 }
         }
-        return (sums, subs.count)
+        snap.activeCount = real.count
+        for s in subs where ["past_due", "unpaid"].contains(s["status"] as? String ?? "") && !isTest(s) {
+            add(&snap.atRisk, s); snap.atRiskCount += 1
+            var one: [String: Int] = [:]; add(&one, s)
+            let cus = s["customer"] as? [String: Any]
+            snap.failing.append(FailingSub(id: s["id"] as? String ?? "", who: StripeClient.person(name: cus?["name"] as? String, email: cus?["email"] as? String),
+                                           amount: one.values.first ?? 0, currency: one.keys.first ?? "eur",
+                                           since: Date(timeIntervalSince1970: TimeInterval(s["current_period_start"] as? Int ?? 0))))
+        }
+        for s in subs where (s["status"] as? String) == "trialing" && !isTest(s) {
+            if s["cancel_at_period_end"] as? Bool == true { snap.trialsCancelling += 1 } else { add(&snap.trials, s); snap.trialCount += 1 }
+        }
+        // Ended trials, one outcome per customer: paying if any of their subscriptions is active,
+        // payment failed if past_due or unpaid, otherwise cancelled.
+        var byCustomer: [String: Set<String>] = [:]
+        for s in subs where !isTest(s) {
+            guard let end = s["trial_end"] as? Int, end <= now else { continue }
+            let cus = (s["customer"] as? [String: Any])?["id"] as? String ?? (s["customer"] as? String ?? "")
+            byCustomer[cus, default: []].insert(s["status"] as? String ?? "")
+        }
+        for statuses in byCustomer.values {
+            if statuses.contains("active") { snap.trialsPaying += 1 }
+            else if statuses.contains("past_due") || statuses.contains("unpaid") { snap.trialsFailed += 1 }
+            else { snap.trialsCancelled += 1 }
+        }
+        snap.trialsEnded = byCustomer.count
+        return snap
     }
+
+    /// Adds one subscription's monthly equivalent (list price, yearly / 12, weekly x 52 / 12) to a per-currency sum.
+    private func add(_ sums: inout [String: Int], _ s: [String: Any]) {
+        let items = (s["items"] as? [String: Any])?["data"] as? [[String: Any]] ?? []
+        for item in items {
+            guard let price = item["price"] as? [String: Any], let recurring = price["recurring"] as? [String: Any],
+                  let amount = price["unit_amount"] as? Int else { continue }
+            let qty = item["quantity"] as? Int ?? 1
+            let count = Double(recurring["interval_count"] as? Int ?? 1)
+            let perMonth: Double
+            switch recurring["interval"] as? String {
+            case "day": perMonth = 30.0 / count
+            case "week": perMonth = 52.0 / 12.0 / count
+            case "year": perMonth = 1.0 / 12.0 / count
+            default: perMonth = 1.0 / count
+            }
+            let cur = price["currency"] as? String ?? (s["currency"] as? String ?? "eur")
+            sums[cur, default: 0] += Int((Double(amount * qty) * perMonth).rounded())
+        }
+    }
+}
+
+/// A subscription whose payment failed: something to chase.
+struct FailingSub: Codable, Identifiable, Hashable {
+    let id: String
+    let who: String?
+    let amount: Int
+    let currency: String
+    let since: Date
+}
+
+struct MrrSnapshot: Codable {
+    var failing: [FailingSub] = []
+    var real: [String: Int] = [:]
+    var activeCount = 0
+    var leaving: [String: Int] = [:]
+    var leavingCount = 0
+    var atRisk: [String: Int] = [:]
+    var atRiskCount = 0
+    var trials: [String: Int] = [:]
+    var trialCount = 0
+    var trialsCancelling = 0
+    var trialsEnded = 0
+    var trialsPaying = 0
+    var trialsFailed = 0
+    var trialsCancelled = 0
+
+    /// Paying share of ended trials (0...1), nil until a trial has ended.
+    var conversion: Double? { trialsEnded > 0 ? Double(trialsPaying) / Double(trialsEnded) : nil }
 }
 
 /// The kinds of things worth a notification, each switchable in the settings.

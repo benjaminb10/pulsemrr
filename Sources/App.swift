@@ -65,7 +65,7 @@ struct KachingApp: App {
                 let m = Model()
                 await m.pollAll()
                 await m.refreshStats()
-                let r = ImageRenderer(content: MenuPanel(model: m).background(Color(nsColor: .windowBackgroundColor)))
+                let r = ImageRenderer(content: MenuPanel(model: m).environment(\.isSnapshot, true).background(Color(nsColor: .windowBackgroundColor)))
                 r.scale = 2
                 if let img = r.nsImage, let tiff = img.tiffRepresentation,
                    let png = NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:]) {

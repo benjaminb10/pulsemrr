@@ -21,8 +21,25 @@ extension Model {
             m.logos[a.id] = letterIcon(letter, color)
             var days: [Date: [String: Int]] = [:]
             for (i, v) in week.reversed().enumerated() where v > 0 { days[m.day(i)] = ["usd": v] }
+            // 23 more days of made-up but steady sales, so the sparklines have a shape
+            var seed = UInt64(accounts.count + 7)
+            for i in 7..<30 {
+                seed = seed &* 6364136223846793005 &+ 1442695040888963407
+                let base = week.max() ?? 0
+                let v = Int(Double(base) * (0.15 + Double(seed >> 40 & 0xFF) / 255.0 * 0.7) * (1.0 - Double(i) / 60.0))
+                if v > 0 { days[m.day(i)] = ["usd": v / 100 * 100] }
+            }
             m.daily[a.id] = days
             m.mrr[a.id] = ["usd": mrr]
+            var d = MrrSnapshot()
+            d.real = ["usd": mrr]; d.activeCount = mrr / 2900
+            if accounts.count == 1 {
+                d.failing = [FailingSub(id: "sub_demo1", who: "Max Mustermann", amount: 2900, currency: "usd", since: Date()),
+                             FailingSub(id: "sub_demo2", who: "lea@example.com", amount: 2900, currency: "usd", since: Date())]
+                d.atRisk = ["usd": 5800]; d.atRiskCount = 2; d.trials = ["usd": 23200]; d.trialCount = 8; d.trialsEnded = 40; d.trialsPaying = 15 }
+            if accounts.count == 3 { d.trials = ["usd": 4800]; d.trialCount = 4; d.trialsEnded = 12; d.trialsPaying = 6 }
+            if accounts.count == 2 { d.leaving = ["usd": 3900]; d.leavingCount = 1; d.trials = ["usd": 7800]; d.trialCount = 2; d.trialsEnded = 10; d.trialsPaying = 4 }
+            m.mrrDetail[a.id] = d
             m.subscribers[a.id] = mrr / 2900
         }
         m.accounts = accounts

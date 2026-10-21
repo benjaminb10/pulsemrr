@@ -15,6 +15,7 @@ final class Model: ObservableObject {
     @Published var rates: [String: Double] = Disk.read("rates.json", as: [String: Double].self) ?? [:] { didSet { if persist { Disk.write(rates, "rates.json") } } }
     @Published var mrr: [UUID: [String: Int]] = [:]
     @Published var subscribers: [UUID: Int] = [:]
+    @Published var mrrDetail: [UUID: MrrSnapshot] = [:]
     @Published var errors: [UUID: String] = [:]
     @Published var lastPoll: Date?
     @Published var notificationsAllowed = true
@@ -60,11 +61,60 @@ final class Model: ObservableObject {
         sum((0..<7).map { offset in a.map { takings($0, offset) } ?? takings(offset) })
     }
 
+    /// One account's last 30 days of takings, oldest first, converted: for its sparkline.
+    func month(_ a: Account) -> [Int] { (0..<30).reversed().map { convert(takings(a, $0)) } }
+    func monthTotal(_ a: Account) -> [String: Int] { sum((0..<30).map { takings(a, $0) }) }
+
+    /// What needs a look, across accounts: failed payments, then disputes of the last 30 days.
+    struct Todo: Identifiable { let id: String; let account: Account; let title: String; let who: String?; let amount: Int; let currency: String; let url: URL; let isDispute: Bool }
+    var todos: [Todo] {
+        var out: [Todo] = []
+        for a in active {
+            let base = a.live ? "https://dashboard.stripe.com/" : "https://dashboard.stripe.com/test/"
+            for f in mrrDetail[a.id]?.failing ?? [] {
+                out.append(Todo(id: f.id, account: a, title: String(localized: "Payment failed"), who: f.who, amount: f.amount, currency: f.currency,
+                                url: URL(string: base + "subscriptions/" + f.id)!, isDispute: false))
+            }
+        }
+        let monthAgo = Date().addingTimeInterval(-30 * 86400)
+        for act in recent where act.kind == .dispute && act.created > monthAgo {
+            guard let a = active.first(where: { $0.id == act.accountID }) else { continue }
+            out.insert(Todo(id: act.id, account: a, title: String(localized: "Dispute"), who: act.who, amount: act.amount ?? 0, currency: act.currency ?? a.currency,
+                            url: act.dashboardURL, isDispute: true), at: 0)
+        }
+        return out
+    }
+
+    /// The feed without noise: a "new customer" is dropped when the same customer started a trial,
+    /// a subscription or paid within ten minutes of it.
+    var feed: [Activity] {
+        recent.filter { act in
+            guard act.kind == .newCustomer, let cus = act.customerID else { return true }
+            return !recent.contains { $0.id != act.id && $0.customerID == cus && abs($0.created.timeIntervalSince(act.created)) < 600 && $0.kind != .newCustomer }
+        }
+    }
+
     /// The last 7 days, oldest first, converted: for the chart.
     var lastWeek: [(day: Date, amount: Int)] { (0..<7).reversed().map { (day($0), convert(takings($0))) } }
 
     var mrrTotal: [String: Int] { sum(active.compactMap { mrr[$0.id] }) }
     var active: [Account] { accounts.filter(\.enabled) }
+
+    // The MRR breakdown across all watched accounts, converted to the display currency.
+    private var details: [MrrSnapshot] { active.compactMap { mrrDetail[$0.id] } }
+    var atRiskTotal: (amount: Int, count: Int) { (convert(sum(details.map(\.atRisk))), details.reduce(0) { $0 + $1.atRiskCount }) }
+    var leavingTotal: (amount: Int, count: Int) { (convert(sum(details.map(\.leaving))), details.reduce(0) { $0 + $1.leavingCount }) }
+    var trialsTotal: (amount: Int, count: Int) { (convert(sum(details.map(\.trials))), details.reduce(0) { $0 + $1.trialCount }) }
+    /// Conversion of ended trials over every account (each trial weighs the same).
+    var conversionTotal: Double? {
+        let ended = details.reduce(0) { $0 + $1.trialsEnded }
+        return ended > 0 ? Double(details.reduce(0) { $0 + $1.trialsPaying }) / Double(ended) : nil
+    }
+    /// Real MRR plus each account's live trials weighted by that account's own conversion rate.
+    var projectedTotal: Int? {
+        guard details.contains(where: { $0.conversion != nil }) else { return nil }
+        return details.reduce(0) { acc, d in acc + convert(d.real) + Int((Double(convert(d.trials)) * (d.conversion ?? 0)).rounded()) }
+    }
 
     var menuBarTitle: String {
         guard prefs.showAmountInMenuBar, !accounts.isEmpty else { return "" }
@@ -199,10 +249,11 @@ final class Model: ObservableObject {
         for a in accounts where a.enabled {
             guard let c = client(a) else { continue }
             do {
-                daily[a.id] = try await c.daily(days: 7)
+                daily[a.id] = try await c.daily(days: 30)
                 let m = try await c.mrr()
-                mrr[a.id] = m.sums
-                subscribers[a.id] = m.count
+                mrr[a.id] = m.real
+                mrrDetail[a.id] = m
+                subscribers[a.id] = m.activeCount
                 errors[a.id] = nil
             } catch {
                 errors[a.id] = error.localizedDescription
@@ -413,6 +464,7 @@ final class Model: ObservableObject {
         logos[a.id] = nil
         daily[a.id] = nil
         mrr[a.id] = nil
+        mrrDetail[a.id] = nil
     }
 
     // MARK: launch at login

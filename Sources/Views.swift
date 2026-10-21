@@ -10,55 +10,57 @@ enum Palette {
 struct MenuPanel: View {
     @ObservedObject var model: Model
     @Environment(\.openWindow) private var openWindow
+    @Environment(\.isSnapshot) private var isSnapshot
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             if model.accounts.isEmpty {
                 empty.padding(16)
             } else {
-                hero.padding(.horizontal, 16).padding(.top, 16).padding(.bottom, 12)
-                WeekChart(model: model).frame(height: 84).padding(.horizontal, 16).padding(.bottom, 14)
+                header.padding(.horizontal, 16).padding(.top, 14).padding(.bottom, 12)
+                if !model.todos.isEmpty {
+                    TodoList(model: model).padding(.horizontal, 12).padding(.bottom, 10)
+                }
+                VStack(spacing: 8) {
+                    ForEach(model.active) { a in ProjectCard(model: model, account: a) }
+                }
+                .padding(.horizontal, 12).padding(.bottom, 12)
                 Divider()
-                ProjectsTable(model: model).padding(.horizontal, 16).padding(.vertical, 12)
-                Divider()
-                ActivityList(model: model).padding(.horizontal, 16).padding(.vertical, 12)
+                ActivityList(model: model).padding(.horizontal, 12).padding(.vertical, 10)
             }
             Divider()
             footer.padding(.horizontal, 12).padding(.vertical, 8)
         }
-        .frame(width: 400)
+        .frame(width: 420)
     }
 
     private var empty: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Welcome to Kaching").font(.headline)
-            Text("Add a Stripe account to get a notification for every sale.")
-                .font(.callout).foregroundStyle(.secondary)
+            Text("Add a Stripe account to get a notification for every sale.").font(.callout).foregroundStyle(.secondary)
             Button("Add a Stripe account…") { openSettings() }
         }
     }
 
-    private var hero: some View {
-        let today = model.takings(0), yesterday = model.takings(1)
-        let t = model.convert(today), y = model.convert(yesterday)
-        return VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Today").font(.caption).foregroundStyle(.secondary)
-                    Amount(model: model, sums: today, font: .system(size: 30, weight: .bold, design: .rounded))
-                }
-                Spacer()
-                Delta(today: t, yesterday: y)
+    /// The one line that answers "did I make money?": today, yesterday, and the MRR of every project added up.
+    private var header: some View {
+        HStack(alignment: .lastTextBaseline, spacing: 0) {
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Today").font(.caption).foregroundStyle(.secondary)
+                Amount(model: model, sums: model.takings(0), font: .system(size: 28, weight: .bold, design: .rounded))
             }
-            HStack(spacing: 8) {
-                Tile(title: String(localized: "Yesterday"), content: Amount(model: model, sums: yesterday, font: .system(size: 15, weight: .semibold, design: .rounded)))
-                Tile(title: String(localized: "7 days"), content: Amount(model: model, sums: model.week(), font: .system(size: 15, weight: .semibold, design: .rounded)))
-                Tile(title: "MRR", content: Amount(model: model, sums: model.mrrTotal, font: .system(size: 15, weight: .semibold, design: .rounded)))
+            Spacer()
+            VStack(alignment: .trailing, spacing: 1) {
+                Text("Yesterday").font(.caption).foregroundStyle(.secondary)
+                Amount(model: model, sums: model.takings(1), font: .system(size: 15, weight: .semibold, design: .rounded))
+            }
+            .padding(.trailing, 18)
+            VStack(alignment: .trailing, spacing: 1) {
+                Text("MRR").font(.caption).foregroundStyle(.secondary)
+                Amount(model: model, sums: model.mrrTotal, font: .system(size: 15, weight: .semibold, design: .rounded))
             }
         }
     }
-
-    @Environment(\.isSnapshot) private var isSnapshot
 
     @ViewBuilder private var footer: some View {
         if isSnapshot {
@@ -69,33 +71,218 @@ struct MenuPanel: View {
                 Image(systemName: "gearshape"); Image(systemName: "power")
             }
             .foregroundStyle(.secondary)
-        } else { liveFooter }
-    }
-
-    private var liveFooter: some View {
-        HStack(spacing: 12) {
-            Button { Task { await model.pollAll(); await model.refreshStats() } } label: { Image(systemName: "arrow.clockwise") }
-                .help("Refresh")
-            Button { model.replayRecent() } label: { Image(systemName: "bell.badge") }
-                .help("Replay the latest notifications")
-            if let t = model.lastPoll {
-                (Text("Checked") + Text(" ") + Text(t, style: .relative)).font(.caption).foregroundStyle(.tertiary)
+        } else {
+            HStack(spacing: 12) {
+                Button { Task { await model.pollAll(); await model.refreshStats() } } label: { Image(systemName: "arrow.clockwise") }.help("Refresh")
+                Button { model.replayRecent() } label: { Image(systemName: "bell.badge") }.help("Replay the latest notifications")
+                if let t = model.lastPoll { (Text("Checked") + Text(" ") + Text(t, style: .relative)).font(.caption).foregroundStyle(.tertiary) }
+                Spacer()
+                if !model.notificationsAllowed {
+                    Image(systemName: "bell.slash").foregroundStyle(.orange).help("Notifications are off: System Settings › Notifications › Kaching")
+                }
+                Button { openSettings() } label: { Image(systemName: "gearshape") }.help("Settings")
+                Button { NSApp.terminate(nil) } label: { Image(systemName: "power") }.help("Quit Kaching")
             }
-            Spacer()
-            if !model.notificationsAllowed {
-                Image(systemName: "bell.slash").foregroundStyle(.orange)
-                    .help("Notifications are off: System Settings › Notifications › Kaching")
-            }
-            Button { openSettings() } label: { Image(systemName: "gearshape") }.help("Settings")
-            Button { NSApp.terminate(nil) } label: { Image(systemName: "power") }.help("Quit Kaching")
+            .buttonStyle(.borderless).foregroundStyle(.secondary)
         }
-        .buttonStyle(.borderless)
-        .foregroundStyle(.secondary)
     }
 
     private func openSettings() {
         openWindow(id: "settings")
         NSApp.activate(ignoringOtherApps: true)
+    }
+}
+
+/// Only shows when something needs chasing: each failed payment and each dispute, with who and how much.
+struct TodoList: View {
+    @ObservedObject var model: Model
+    var body: some View {
+        let items = model.todos
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 5) {
+                Image(systemName: "exclamationmark.circle.fill").foregroundStyle(Palette.loss)
+                Text("To do").fontWeight(.semibold)
+                Text("· \(items.count)").foregroundStyle(.secondary)
+            }
+            .font(.caption)
+            .padding(.horizontal, 4)
+            ForEach(items.prefix(3)) { t in
+                Button { NSWorkspace.shared.open(t.url) } label: {
+                    HStack(spacing: 8) {
+                        AccountIcon(model: model, account: t.account, size: 18)
+                        Text(t.title).fontWeight(.medium)
+                        if let who = t.who { Text(who).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle) }
+                        Spacer(minLength: 6)
+                        Text(Money.format(t.amount, t.currency, compact: true)).monospacedDigit().foregroundStyle(Palette.loss)
+                    }
+                    .font(.callout)
+                    .padding(.horizontal, 8).padding(.vertical, 6)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help("Open in Stripe")
+            }
+            if items.count > 3 {
+                Text(String(format: String(localized: "and %lld more"), items.count - 3)).font(.caption).foregroundStyle(.secondary).padding(.horizontal, 8)
+            }
+        }
+        .padding(6)
+        .background(Palette.loss.opacity(0.07), in: RoundedRectangle(cornerRadius: 12))
+    }
+}
+
+/// One project on one line: logo and name, 30 days of sales as a sparkline, MRR. Its own signals
+/// (failed payments, trials with their conversion, churn) show underneath only when it has some.
+struct ProjectCard: View {
+    @ObservedObject var model: Model
+    let account: Account
+
+    var body: some View {
+        let d = model.mrrDetail[account.id]
+        let today = model.convert(model.takings(account, 0))
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(spacing: 10) {
+                AccountIcon(model: model, account: account, size: 28)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(account.name).font(.callout.weight(.semibold)).lineLimit(1)
+                    HStack(spacing: 3) {
+                        if today > 0 {
+                            Text("Today").foregroundStyle(.secondary)
+                            Text("+" + Money.format(today, model.currency, compact: true)).fontWeight(.semibold).foregroundStyle(Palette.money)
+                        } else {
+                            Text("No sale today").foregroundStyle(.tertiary)
+                        }
+                    }
+                    .font(.caption).monospacedDigit().lineLimit(1)
+                }
+                Spacer(minLength: 6)
+                Sparkline(values: model.month(account)).frame(width: 84, height: 24)
+                VStack(alignment: .trailing, spacing: 0) {
+                    Amount(model: model, sums: model.mrr[account.id] ?? [:], font: .system(size: 15, weight: .bold, design: .rounded), compact: true, approxMark: false)
+                    Text(subscribers(d)).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+                }
+                .frame(minWidth: 70, alignment: .trailing)
+            }
+            if let d {
+                let chips = signals(d)
+                if !chips.isEmpty {
+                    HStack(spacing: 6) { ForEach(chips, id: \.0) { chip($0.1, $0.2, $0.3) }; Spacer(minLength: 0) }
+                        .padding(.leading, 38)
+                }
+            }
+            if let err = model.errors[account.id] {
+                Label(err, systemImage: "exclamationmark.triangle.fill").font(.caption).foregroundStyle(.orange).lineLimit(1).padding(.leading, 38)
+            }
+        }
+        .padding(.horizontal, 10).padding(.vertical, 9)
+        .background(.background.opacity(0.7), in: RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(.quaternary, lineWidth: 1))
+    }
+
+    private func subscribers(_ d: MrrSnapshot?) -> String {
+        guard let n = d?.activeCount, n > 0 else { return String(localized: "MRR") }
+        return String(format: String(localized: n > 1 ? "%lld subscribers" : "%lld subscriber"), n)
+    }
+
+    /// (key, icon, tint, text): only the signals this project actually has.
+    private func signals(_ d: MrrSnapshot) -> [(String, String, Color, String)] {
+        var out: [(String, String, Color, String)] = []
+        if d.atRiskCount > 0 {
+            out.append(("risk", "exclamationmark.triangle.fill", Palette.loss,
+                        String(format: String(localized: d.atRiskCount > 1 ? "%lld failed payments" : "%lld failed payment"), d.atRiskCount) + " · " + Money.format(model.convert(d.atRisk), model.currency, compact: true)))
+        }
+        if d.trialCount > 0 {
+            var text = String(format: String(localized: d.trialCount > 1 ? "%lld trials" : "%lld trial"), d.trialCount)
+            if let c = d.conversion { text += " · \(Int((c * 100).rounded())) %" }
+            out.append(("trials", "hourglass", .secondary, text))
+        }
+        if d.leavingCount > 0 {
+            out.append(("leaving", "arrow.down.right", .secondary,
+                        String(format: String(localized: d.leavingCount > 1 ? "%lld cancellations" : "%lld cancellation"), d.leavingCount)))
+        }
+        return out
+    }
+
+    private func chip(_ icon: String, _ tint: Color, _ text: String) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: icon).font(.system(size: 9, weight: .bold))
+            Text(text).monospacedDigit()
+        }
+        .font(.caption2.weight(.medium))
+        .foregroundStyle(tint == .secondary ? Color.secondary : tint)
+        .padding(.horizontal, 7).padding(.vertical, 3)
+        .background((tint == .secondary ? Color.primary : tint).opacity(0.07), in: Capsule())
+        .lineLimit(1)
+        .help(icon == "hourglass" ? String(localized: "Trials running now, and the share of this project's past trials that became paying.") : "")
+    }
+}
+
+/// 30 days of sales as a soft area with a line; today is the last point.
+struct Sparkline: View {
+    let values: [Int]
+    var body: some View {
+        GeometryReader { geo in
+            let top = CGFloat(max(values.max() ?? 0, 1)), w = geo.size.width, h = geo.size.height
+            let step = values.count > 1 ? w / CGFloat(values.count - 1) : w
+            let pts = values.enumerated().map { CGPoint(x: CGFloat($0.offset) * step, y: h - 2 - CGFloat($0.element) / top * (h - 4)) }
+            ZStack {
+                Path { p in
+                    guard let first = pts.first else { return }
+                    p.move(to: CGPoint(x: first.x, y: h)); pts.forEach { p.addLine(to: $0) }; p.addLine(to: CGPoint(x: w, y: h)); p.closeSubpath()
+                }
+                .fill(LinearGradient(colors: [Palette.money.opacity(0.22), Palette.money.opacity(0)], startPoint: .top, endPoint: .bottom))
+                Path { p in
+                    guard let first = pts.first else { return }
+                    p.move(to: first); pts.dropFirst().forEach { p.addLine(to: $0) }
+                }
+                .stroke(Palette.money, style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
+                if let last = pts.last { Circle().fill(Palette.money).frame(width: 5, height: 5).position(last) }
+            }
+        }
+        .help(String(localized: "Sales, last 30 days"))
+    }
+}
+
+/// What the MRR figure leaves out, the way a founder reads it: failed payments, trials, the projection, churn on its way.
+struct MrrBreakdown: View {
+    @ObservedObject var model: Model
+    var body: some View {
+        let risk = model.atRiskTotal, trials = model.trialsTotal, leaving = model.leavingTotal
+        let cur = model.currency
+        LazyVGrid(columns: [GridItem(.flexible(), spacing: 6), GridItem(.flexible(), spacing: 6)], alignment: .leading, spacing: 6) {
+            if risk.count > 0 {
+                chip("exclamationmark.triangle.fill", Palette.loss, String(localized: "At risk"), Money.format(risk.amount, cur, compact: true),
+                     String(format: String(localized: "%lld subscriptions with a failed payment, not counted in the MRR. Stripe is still retrying."), risk.count))
+            }
+            if trials.count > 0 {
+                let conv = model.conversionTotal.map { " · \(Int(($0 * 100).rounded())) %" } ?? ""
+                chip("hourglass", .secondary, String(localized: "Trials"), Money.format(trials.amount, cur, compact: true) + conv,
+                     String(format: String(localized: "%lld trials that will be charged at the end, and the share of past trials that became paying."), trials.count))
+            }
+            if let projected = model.projectedTotal, trials.count > 0 {
+                chip("chart.line.uptrend.xyaxis", Palette.money, String(localized: "Projected"), Money.format(projected, cur, compact: true),
+                     String(localized: "MRR + current trials × your real trial conversion rate."))
+            }
+            if leaving.count > 0 {
+                chip("door.left.hand.open", .secondary, String(localized: "Leaving"), Money.format(leaving.amount, cur, compact: true),
+                     String(format: String(localized: "%lld subscribers cancelled: still paying until the end of their period."), leaving.count))
+            }
+        }
+    }
+
+    private func chip(_ icon: String, _ tint: Color, _ title: String, _ value: String, _ help: String) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: icon).font(.system(size: 9, weight: .semibold)).foregroundStyle(tint)
+            Text(title).foregroundStyle(.secondary)
+            Spacer(minLength: 4)
+            Text(value).fontWeight(.semibold).monospacedDigit()
+        }
+        .font(.caption)
+        .lineLimit(1)
+        .padding(.horizontal, 9).padding(.vertical, 6)
+        .frame(maxWidth: .infinity)
+        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
+        .help(help)
     }
 }
 
@@ -215,24 +402,31 @@ struct ProjectsTable: View {
 struct ActivityList: View {
     @ObservedObject var model: Model
     @Environment(\.isSnapshot) private var isSnapshot
+
+    private func dayTitle(_ d: Date) -> String {
+        let cal = Calendar.current
+        if cal.isDateInToday(d) { return String(localized: "Today") }
+        if cal.isDateInYesterday(d) { return String(localized: "Yesterday") }
+        let f = DateFormatter(); f.locale = Money.locale; f.setLocalizedDateFormatFromTemplate("EEEE d MMMM")
+        return f.string(from: d).capitalized
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Activity").font(.caption2.weight(.medium)).foregroundStyle(.secondary).textCase(.uppercase)
-            if model.recent.isEmpty {
-                Text("Nothing in the last 7 days.").font(.callout).foregroundStyle(.secondary)
-            } else {
-                let items = Array(model.recent.prefix(30))
-                if isSnapshot {
-                    VStack(spacing: 2) { ForEach(items.prefix(5)) { act in ActivityRow(model: model, act: act) } }
-                } else {
-                ScrollView {
-                    VStack(spacing: 2) {
-                        ForEach(items) { act in ActivityRow(model: model, act: act) }
-                    }
-                }
-                .frame(height: min(CGFloat(items.count), 5) * 44)
-                }
+        let items = Array(model.feed.prefix(isSnapshot ? 5 : 40))
+        let groups = Dictionary(grouping: items) { Calendar.current.startOfDay(for: $0.created) }.sorted { $0.key > $1.key }
+        let content = VStack(alignment: .leading, spacing: 2) {
+            ForEach(groups, id: \.key) { day, acts in
+                Text(dayTitle(day)).font(.caption2.weight(.semibold)).foregroundStyle(.secondary).textCase(.uppercase)
+                    .padding(.horizontal, 6).padding(.top, 6).padding(.bottom, 2)
+                ForEach(acts) { act in ActivityRow(model: model, act: act) }
             }
+        }
+        if items.isEmpty {
+            Text("Nothing in the last 7 days.").font(.callout).foregroundStyle(.secondary).padding(.horizontal, 6)
+        } else if isSnapshot {
+            content
+        } else {
+            ScrollView { content }.frame(height: min(CGFloat(items.count) * 42 + CGFloat(groups.count) * 24, 260))
         }
     }
 }
@@ -245,7 +439,7 @@ struct ActivityRow: View {
 
     private var tone: Color {
         switch act.kind {
-        case .sale, .newSubscriber, .trialConverted, .payout: return Palette.money
+        case .sale, .newSubscriber, .trialConverted: return Palette.money
         case .refund, .paymentFailed, .dispute, .ended, .canceled: return Palette.loss
         default: return .secondary
         }
@@ -282,7 +476,7 @@ struct ActivityRow: View {
                 }
                 Spacer(minLength: 6)
                 if let amount = act.amount, let cur = act.currency {
-                    let sign = [.sale, .payout, .newSubscriber, .trialConverted].contains(act.kind) ? "+" : (tone == Palette.loss ? "−" : "")
+                    let sign = [.sale, .newSubscriber, .trialConverted].contains(act.kind) ? "+" : (tone == Palette.loss ? "−" : "")
                     Text(sign + Money.format(amount, cur, compact: true))
                         .font(.callout.weight(.semibold)).monospacedDigit().foregroundStyle(tone)
                 }
