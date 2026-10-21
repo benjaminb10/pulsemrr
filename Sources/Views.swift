@@ -22,6 +22,7 @@ struct MenuPanel: View {
                 empty.padding(16).frame(maxWidth: .infinity, alignment: .leading).panelCard()
             } else {
                 header.padding(16).panelCard()
+                DashboardTeaser(model: model) { openDashboard(nil) }
                 if !model.todos.isEmpty { TodoLine(model: model) }
                 VStack(spacing: 0) {
                     HStack {
@@ -93,15 +94,6 @@ struct MenuPanel: View {
             if isSnapshot { Text("Checked") + Text(" ") + Text("4 s") }
             else if let t = model.lastPoll { Text("Checked") + Text(" ") + Text(t, style: .relative) }
             Spacer()
-            Button { openDashboard(nil) } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: "chart.xyaxis.line")
-                    Text("Dashboard")
-                }
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(.secondary)
-            .help("Open the dashboard: MRR over time, churn, best customers")
             if !model.notificationsAllowed {
                 Image(systemName: "bell.slash").foregroundStyle(.orange)
                     .onTapGesture { model.openNotificationSettings() }
@@ -130,6 +122,45 @@ extension View {
     func panelCard() -> some View {
         background(Palette.surface, in: RoundedRectangle(cornerRadius: 12))
             .overlay(RoundedRectangle(cornerRadius: 12).stroke(Palette.line))
+    }
+}
+
+/// The way into the dashboard: a card of its own under today's figure, with the MRR's last 12 months.
+struct DashboardTeaser: View {
+    @ObservedObject var model: Model
+    let open: () -> Void
+    @State private var hover = false
+
+    var body: some View {
+        let trend = model.mrrTrend()
+        Button(action: open) {
+            HStack(spacing: 12) {
+                Image(systemName: "chart.xyaxis.line")
+                    .font(.system(size: 15, weight: .semibold)).foregroundStyle(.white)
+                    .frame(width: 32, height: 32)
+                    .background(LinearGradient(colors: [Palette.brand, Palette.mint], startPoint: .topLeading, endPoint: .bottomTrailing),
+                                in: RoundedRectangle(cornerRadius: 9))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Dashboard").font(.subheadline.weight(.semibold))
+                    Text("MRR, churn, best customers").font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                }
+                Spacer(minLength: 6)
+                if trend.count > 1 && (trend.max() ?? 0) > 0 {
+                    Sparkline(values: trend, color: Palette.brand, tip: String(localized: "MRR, last 12 months")).frame(width: 64, height: 24)
+                }
+                Image(systemName: "chevron.right").font(.system(size: 11, weight: .semibold)).foregroundStyle(.tertiary)
+            }
+            .padding(.horizontal, 12).padding(.vertical, 10)
+            .background(LinearGradient(colors: [Palette.brand.opacity(hover ? 0.13 : 0.08), Palette.mint.opacity(hover ? 0.11 : 0.06)],
+                                       startPoint: .leading, endPoint: .trailing), in: RoundedRectangle(cornerRadius: 12))
+            .background(Palette.surface, in: RoundedRectangle(cornerRadius: 12))
+            .overlay(RoundedRectangle(cornerRadius: 12).stroke(Palette.brand.opacity(0.22)))
+            .contentShape(RoundedRectangle(cornerRadius: 12))
+        }
+        .buttonStyle(.plain)
+        .keyboardShortcut("d", modifiers: .command)
+        .onHover { hover = $0 }
+        .help(String(localized: "Open the dashboard (⌘D)"))
     }
 }
 
@@ -244,6 +275,8 @@ struct ProjectRow: View {
 /// 30 days of sales as a soft area with a line; today is the last point.
 struct Sparkline: View {
     let values: [Int]
+    var color: Color = Palette.money
+    var tip = String(localized: "Sales, last 30 days")
     var body: some View {
         GeometryReader { geo in
             let top = CGFloat(max(values.max() ?? 0, 1)), w = geo.size.width, h = geo.size.height
@@ -254,16 +287,16 @@ struct Sparkline: View {
                     guard let first = pts.first else { return }
                     p.move(to: CGPoint(x: first.x, y: h)); pts.forEach { p.addLine(to: $0) }; p.addLine(to: CGPoint(x: w, y: h)); p.closeSubpath()
                 }
-                .fill(LinearGradient(colors: [Palette.money.opacity(0.22), Palette.money.opacity(0)], startPoint: .top, endPoint: .bottom))
+                .fill(LinearGradient(colors: [color.opacity(0.22), color.opacity(0)], startPoint: .top, endPoint: .bottom))
                 Path { p in
                     guard let first = pts.first else { return }
                     p.move(to: first); pts.dropFirst().forEach { p.addLine(to: $0) }
                 }
-                .stroke(Palette.money, style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
-                if let last = pts.last { Circle().fill(Palette.money).frame(width: 5, height: 5).position(last) }
+                .stroke(color, style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
+                if let last = pts.last { Circle().fill(color).frame(width: 5, height: 5).position(last) }
             }
         }
-        .help(String(localized: "Sales, last 30 days"))
+        .help(tip)
     }
 }
 

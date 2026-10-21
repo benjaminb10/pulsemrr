@@ -344,6 +344,17 @@ final class Model: ObservableObject {
         dashboardUpdated = Date()
     }
 
+    /// Total MRR every two weeks over the last 12 months, in the display currency: the panel's teaser curve.
+    func mrrTrend() -> [Int] {
+        let now = Date()
+        let all = active.flatMap { facts[$0.id] ?? [] }
+        guard !all.isEmpty else { return [] }
+        return stride(from: 26, through: 0, by: -1).map { k in
+            let t = now.addingTimeInterval(-Double(k) * 14 * 86400)
+            return all.filter { $0.pays(at: t) }.reduce(0) { $0 + convert($1.monthly, $1.currency) }
+        }
+    }
+
     func rebuildDashboard() {
         let scope = dashboardScope.flatMap { id in active.first { $0.id == id } }
         dashboard = Analytics.build(accounts: scope.map { [$0] } ?? active, all: active, facts: facts, revenue: revenue,

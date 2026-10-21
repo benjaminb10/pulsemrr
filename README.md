@@ -33,7 +33,7 @@ Free, open source, no server. Your keys never leave your Mac.</p>
 
 ## The dashboard
 
-Click **Dashboard** in the panel, or a project, to open a full window that follows every project over time:
+Click the **Dashboard** card under today's figure (or press ⌘D), or a project, to open a full window that follows every project over time:
 
 - **MRR over 3, 6 or 12 months**, all projects stacked or one at a time. Hover the chart to read any week.
 - **Where the MRR comes from and goes**, month by month: new customers, upgrades, returning customers, downgrades and cancellations, with the net change.
