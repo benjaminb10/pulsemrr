@@ -1,5 +1,5 @@
-/* Kaching, French */
-"Kaching Settings" = "Réglages de Kaching";
+/* PulseMRR, French */
+"PulseMRR Settings" = "Réglages de PulseMRR";
 "New sale" = "Nouvelle vente";
 "New subscriber" = "Nouvel abonné";
 "New trial" = "Nouvel essai";
@@ -35,7 +35,7 @@
 "test mode" = "mode test";
 "Test" = "Test";
 "Notifications work. Your next sales will show up here." = "Les notifications marchent. Tes prochaines ventes s'afficheront ici.";
-"Welcome to Kaching" = "Bienvenue dans Kaching";
+"Welcome to PulseMRR" = "Bienvenue dans PulseMRR";
 "Add a Stripe account to get a notification for every sale." = "Ajoute un compte Stripe pour recevoir une notification à chaque vente.";
 "Add a Stripe account…" = "Ajouter un compte Stripe…";
 "Today" = "Aujourd'hui";
@@ -44,9 +44,9 @@
 "Refresh" = "Rafraîchir";
 "Replay the latest notifications" = "Rejouer les dernières notifications";
 "Checked" = "Vérifié";
-"Notifications are off: System Settings › Notifications › Kaching" = "Notifications coupées : Réglages Système › Notifications › Kaching";
+"Notifications are off: System Settings › Notifications › PulseMRR" = "Notifications coupées : Réglages Système › Notifications › PulseMRR";
 "Settings" = "Réglages";
-"Quit Kaching" = "Quitter Kaching";
+"Quit PulseMRR" = "Quitter PulseMRR";
 "Converted at today's ECB rate:" = "Converti au taux BCE du jour :";
 "Project" = "Projet";
 "Activity" = "Activité";
@@ -68,7 +68,7 @@
 "In Stripe: Developers › API keys › Create restricted key, with Read on Events, Charges, Customers, Subscriptions and Payouts." = "Dans Stripe : Développeurs › Clés API › Créer une clé restreinte, avec la lecture sur Events, Charges, Customers, Subscriptions et Payouts.";
 "Advanced" = "Options avancées";
 "acct_… (connected account, for a Connect platform)" = "acct_… (compte connecté, pour une plateforme Connect)";
-"The key stays in this Mac's Keychain. Kaching only reads." = "La clé reste dans le Trousseau de ce Mac. Kaching ne fait que lire.";
+"The key stays in this Mac's Keychain. PulseMRR only reads." = "La clé reste dans le Trousseau de ce Mac. PulseMRR ne fait que lire.";
 "Cancel" = "Annuler";
 "Checking…" = "Vérification…";
 "Check" = "Vérifier";
@@ -135,5 +135,5 @@
 "Quiet today" = "Rien aujourd'hui";
 "%lld %% of past trials became paying" = "%lld %% des essais passés sont devenus payants";
 "Keep notifications on screen" = "Garder les notifications à l'écran";
-"In System Settings, set Kaching's style to Persistent: each sale stays until you dismiss it." = "Dans Réglages Système, choisis le style « Persistant » pour Kaching : chaque vente reste affichée jusqu'à ce que tu la fermes.";
+"In System Settings, set PulseMRR's style to Persistent: each sale stays until you dismiss it." = "Dans Réglages Système, choisis le style « Persistant » pour PulseMRR : chaque vente reste affichée jusqu'à ce que tu la fermes.";
 "Open…" = "Ouvrir…";

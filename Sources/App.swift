@@ -1,4 +1,4 @@
-// Kaching: a native notification for every Stripe sale, subscriber, cancellation or failed payment,
+// PulseMRR: a native notification for every Stripe sale, subscriber, cancellation or failed payment,
 // across all your Stripe accounts, with today's takings and the MRR in the menu bar. No server.
 import AppKit
 import ServiceManagement
@@ -27,14 +27,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 }
 
 @main
-struct KachingApp: App {
+struct PulseMRRApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var delegate
     @StateObject private var model = Model()
 
     init() {
-        // `Kaching --add-account "Name" "emoji"` with the key on stdin: adds an account without the window.
+        // `PulseMRR --add-account "Name" "emoji"` with the key on stdin: adds an account without the window.
         let args = CommandLine.arguments
-        // `Kaching --demo-snapshot out.png [dark]`: the panel with made-up projects, for the README.
+        // `PulseMRR --demo-snapshot out.png [dark]`: the panel with made-up projects, for the README.
         if let i = args.firstIndex(of: "--demo-snapshot"), args.count > i + 1 {
             let out = URL(fileURLWithPath: args[i + 1])
             let dark = args.contains("dark")
@@ -57,7 +57,7 @@ struct KachingApp: App {
             }
             exit(0)
         }
-        // `Kaching --snapshot out.png`: draws the menu panel to an image, with live data (for docs and checks).
+        // `PulseMRR --snapshot out.png`: draws the menu panel to an image, with live data (for docs and checks).
         if let i = args.firstIndex(of: "--snapshot"), args.count > i + 1 {
             let out = URL(fileURLWithPath: args[i + 1])
             let sem = DispatchSemaphore(value: 0)
@@ -77,20 +77,20 @@ struct KachingApp: App {
             while sem.wait(timeout: .now()) == .timedOut { RunLoop.main.run(until: Date().addingTimeInterval(0.05)) }
             exit(0)
         }
-        // `Kaching --notif-status`: what macOS allows for Kaching's notifications.
+        // `PulseMRR --notif-status`: what macOS allows for PulseMRR's notifications.
         if args.contains("--notif-status") {
             let sem = DispatchSemaphore(value: 0)
             Task { @MainActor in print(await Model().notificationStatus()); sem.signal() }
             while sem.wait(timeout: .now()) == .timedOut { RunLoop.main.run(until: Date().addingTimeInterval(0.05)) }
             exit(0)
         }
-        // `Kaching --launch-status`: whether Kaching opens at login.
+        // `PulseMRR --launch-status`: whether PulseMRR opens at login.
         if args.contains("--launch-status") {
             let st = SMAppService.mainApp.status
             print(st == .enabled ? "enabled" : st == .requiresApproval ? "requiresApproval" : st == .notRegistered ? "notRegistered" : "notFound")
             exit(0)
         }
-        // `Kaching --recap`: prints today's recap with live data (to check it before 20 h).
+        // `PulseMRR --recap`: prints today's recap with live data (to check it before 20 h).
         if args.contains("--recap") {
             let sem = DispatchSemaphore(value: 0)
             Task { @MainActor in
@@ -140,7 +140,7 @@ struct KachingApp: App {
         }
         .menuBarExtraStyle(.window)
 
-        Window("Kaching Settings", id: "settings") {
+        Window("PulseMRR Settings", id: "settings") {
             SettingsView(model: model)
         }
         .windowResizability(.contentSize)

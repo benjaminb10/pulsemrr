@@ -373,7 +373,7 @@ final class Model: ObservableObject {
         if prefs.sound {
             // Money coming in gets the cash register; everything else the system sound.
             let cashIn: Set<EventKind> = [.sale, .newSubscriber, .trialConverted, .payout]
-            content.sound = cashIn.contains(act.kind) ? UNNotificationSound(named: UNNotificationSoundName("kaching.caf")) : .default
+            content.sound = cashIn.contains(act.kind) ? UNNotificationSound(named: UNNotificationSoundName("cash.caf")) : .default
         }
         if a.useLogo, FileManager.default.fileExists(atPath: a.logoURL.path) {
             // A notification attachment is moved into the system's store, so hand it a copy.
@@ -390,7 +390,7 @@ final class Model: ObservableObject {
         let sample = recent.prefix(3)
         if sample.isEmpty {
             let content = UNMutableNotificationContent()
-            content.title = "💰 Kaching · " + String(localized: "Test")
+            content.title = "💰 PulseMRR · " + String(localized: "Test")
             content.body = String(localized: "Notifications work. Your next sales will show up here.")
             if prefs.sound { content.sound = .default }
             UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil))
@@ -482,7 +482,7 @@ final class Model: ObservableObject {
         mrrDetail[a.id] = nil
     }
 
-    /// What macOS allows for Kaching's notifications, for the settings and for --notif-status.
+    /// What macOS allows for PulseMRR's notifications, for the settings and for --notif-status.
     func notificationStatus() async -> String {
         let st = await UNUserNotificationCenter.current().notificationSettings()
         let auth: String
@@ -502,10 +502,10 @@ final class Model: ObservableObject {
         return "authorization=\(auth) style=\(style) sound=\(st.soundSetting == .enabled) center=\(st.notificationCenterSetting == .enabled)"
     }
 
-    /// Opens Kaching's page in System Settings › Notifications.
+    /// Opens PulseMRR's page in System Settings › Notifications.
     func openNotificationSettings() {
-        let urls = ["x-apple.systempreferences:com.apple.Notifications-Settings.extension?id=app.kaching",
-                    "x-apple.systempreferences:com.apple.preference.notifications?id=app.kaching"]
+        let urls = ["x-apple.systempreferences:com.apple.Notifications-Settings.extension?id=app.pulsemrr",
+                    "x-apple.systempreferences:com.apple.preference.notifications?id=app.pulsemrr"]
         for u in urls { if let url = URL(string: u), NSWorkspace.shared.open(url) { return } }
     }
 

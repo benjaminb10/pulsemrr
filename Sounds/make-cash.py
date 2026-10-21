@@ -1,4 +1,4 @@
-# Synthesizes Kaching's cash register sound from scratch (no samples, so no rights issue):
+# Synthesizes PulseMRR's cash register sound from scratch (no samples, so no rights issue):
 # a short drawer "ka", then a two-strike metallic bell "ching" and a few coin ticks.
 import math, random, struct, wave, sys
 

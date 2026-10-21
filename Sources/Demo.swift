@@ -1,4 +1,4 @@
-// Made-up projects and numbers, for screenshots: `Kaching --demo-snapshot out.png`.
+// Made-up projects and numbers, for screenshots: `PulseMRR --demo-snapshot out.png`.
 // Nothing is read from or written to disk and nothing is fetched from Stripe.
 import AppKit
 import SwiftUI

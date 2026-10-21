@@ -42,7 +42,7 @@ struct MenuPanel: View {
 
     private var empty: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Welcome to Kaching").font(.headline)
+            Text("Welcome to PulseMRR").font(.headline)
             Text("Add a Stripe account to get a notification for every sale.").font(.callout).foregroundStyle(.secondary)
             Button("Add a Stripe account…") { openSettings() }
         }
@@ -74,10 +74,10 @@ struct MenuPanel: View {
             else if let t = model.lastPoll { Text("Checked") + Text(" ") + Text(t, style: .relative) }
             Spacer()
             if !model.notificationsAllowed {
-                Image(systemName: "bell.slash").foregroundStyle(.orange).help("Notifications are off: System Settings › Notifications › Kaching")
+                Image(systemName: "bell.slash").foregroundStyle(.orange).help("Notifications are off: System Settings › Notifications › PulseMRR")
             }
             Image(systemName: "gearshape").onTapGesture { openSettings() }.help("Settings")
-            Image(systemName: "power").onTapGesture { NSApp.terminate(nil) }.help("Quit Kaching")
+            Image(systemName: "power").onTapGesture { NSApp.terminate(nil) }.help("Quit PulseMRR")
         }
         content.font(.callout).foregroundStyle(.tertiary).contentShape(Rectangle())
     }
@@ -521,7 +521,7 @@ struct AccountRow: View {
     }
 }
 
-/// Paste a key: Kaching finds the account's name and logo, you confirm.
+/// Paste a key: PulseMRR finds the account's name and logo, you confirm.
 struct AddAccountSheet: View {
     @ObservedObject var model: Model
     @Environment(\.dismiss) private var dismiss
@@ -570,7 +570,7 @@ struct AddAccountSheet: View {
             if let error { Label(error, systemImage: "exclamationmark.triangle").font(.callout).foregroundStyle(.red) }
 
             HStack {
-                Text("The key stays in this Mac's Keychain. Kaching only reads.")
+                Text("The key stays in this Mac's Keychain. PulseMRR only reads.")
                     .font(.caption).foregroundStyle(.secondary)
                 Spacer()
                 Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
@@ -643,7 +643,7 @@ struct SettingsView: View {
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Keep notifications on screen")
-                        Text("In System Settings, set Kaching's style to Persistent: each sale stays until you dismiss it.").font(.caption).foregroundStyle(.secondary)
+                        Text("In System Settings, set PulseMRR's style to Persistent: each sale stays until you dismiss it.").font(.caption).foregroundStyle(.secondary)
                     }
                     Spacer()
                     Button("Open…") { model.openNotificationSettings() }
