@@ -54,15 +54,7 @@ enum Keychain {
         SecItemAdd(q as CFDictionary, nil)
     }
 
-    /// Where keys lived when the app was called Kaching: read once, then moved to the new service.
-    static let legacyService = "app.kaching.stripe"
-
-    static func load(_ id: UUID) -> String? {
-        if let key = read(id, service) { return key }
-        guard let old = read(id, legacyService) else { return nil }
-        save(old, for: id)
-        return old
-    }
+    static func load(_ id: UUID) -> String? { read(id, service) }
 
     private static func read(_ id: UUID, _ service: String) -> String? {
         let q: [String: Any] = [
@@ -117,11 +109,6 @@ enum Disk {
     static var folder: URL {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         let url = base.appendingPathComponent("PulseMRR", isDirectory: true)
-        // The app used to be called Kaching: bring its accounts, logos and history along, once.
-        let old = base.appendingPathComponent("Kaching", isDirectory: true)
-        if !FileManager.default.fileExists(atPath: url.path), FileManager.default.fileExists(atPath: old.path) {
-            try? FileManager.default.copyItem(at: old, to: url)
-        }
         try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         return url
     }
