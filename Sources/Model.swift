@@ -206,12 +206,19 @@ final class Model: ObservableObject {
             cursors[key] = cursor
             saveCursors()
             var moneyMoved = false
+            var acts: [Activity] = []
             for e in fresh {
                 guard var act = Activity.from(e, account: a.id) else { continue }
                 if act.who == nil, let cus = act.customerID { act.who = await name(of: cus, c) }
                 remember(act)
+                acts.append(act)
                 moneyMoved = true
-                if prefs.kinds.contains(act.kind) { notify(act, a) }
+            }
+            for act in acts where prefs.kinds.contains(act.kind) {
+                // A sign-up usually comes as "new customer" plus "trial started" or a sale: notify the more telling one only
+                if act.kind == .newCustomer, let cus = act.customerID,
+                   acts.contains(where: { $0.customerID == cus && $0.kind != .newCustomer && prefs.kinds.contains($0.kind) }) { continue }
+                notify(act, a)
             }
             return moneyMoved
         } catch {
@@ -473,6 +480,33 @@ final class Model: ObservableObject {
         signups[a.id] = nil
         mrr[a.id] = nil
         mrrDetail[a.id] = nil
+    }
+
+    /// What macOS allows for Kaching's notifications, for the settings and for --notif-status.
+    func notificationStatus() async -> String {
+        let st = await UNUserNotificationCenter.current().notificationSettings()
+        let auth: String
+        switch st.authorizationStatus {
+        case .authorized: auth = "authorized"
+        case .denied: auth = "denied"
+        case .notDetermined: auth = "notDetermined"
+        case .provisional: auth = "provisional"
+        default: auth = "other"
+        }
+        let style: String
+        switch st.alertStyle {
+        case .alert: style = "alert (persistent)"
+        case .banner: style = "banner (temporary)"
+        default: style = "none"
+        }
+        return "authorization=\(auth) style=\(style) sound=\(st.soundSetting == .enabled) center=\(st.notificationCenterSetting == .enabled)"
+    }
+
+    /// Opens Kaching's page in System Settings › Notifications.
+    func openNotificationSettings() {
+        let urls = ["x-apple.systempreferences:com.apple.Notifications-Settings.extension?id=app.kaching",
+                    "x-apple.systempreferences:com.apple.preference.notifications?id=app.kaching"]
+        for u in urls { if let url = URL(string: u), NSWorkspace.shared.open(url) { return } }
     }
 
     // MARK: launch at login

@@ -640,6 +640,14 @@ struct SettingsView: View {
                         set: { on in if on { model.prefs.kinds.insert(kind) } else { model.prefs.kinds.remove(kind) } }))
                 }
                 Toggle("Sound", isOn: $model.prefs.sound)
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Keep notifications on screen")
+                        Text("In System Settings, set Kaching's style to Persistent: each sale stays until you dismiss it.").font(.caption).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Button("Open…") { model.openNotificationSettings() }
+                }
                 Button("Replay the latest notifications") { model.replayRecent() }
             }
 

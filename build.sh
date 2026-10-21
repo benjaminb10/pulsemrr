@@ -35,6 +35,7 @@ cat > "$APP"/Contents/Info.plist <<PLIST
 <key>CFBundleVersion</key><string>$(git rev-list --count HEAD 2>/dev/null || echo 1)</string>
 <key>LSMinimumSystemVersion</key><string>13.0</string>
 <key>LSUIElement</key><true/>
+<key>NSUserNotificationAlertStyle</key><string>alert</string>
 <key>LSApplicationCategoryType</key><string>public.app-category.finance</string>
 <key>NSHumanReadableCopyright</key><string>A notification for every Stripe sale.</string>
 </dict></plist>

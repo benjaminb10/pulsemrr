@@ -249,8 +249,8 @@ enum EventKind: String, CaseIterable, Codable, Identifiable {
         }
     }
 
-    /// On by default: everything except new customers (each sale already says who bought).
-    var defaultOn: Bool { self != .newCustomer }
+    /// Everything is on by default. A new customer who starts a trial or pays in the same minute gets one notification, not two.
+    var defaultOn: Bool { true }
 
     var stripeTypes: [String] {
         switch self {

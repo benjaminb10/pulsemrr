@@ -77,6 +77,13 @@ struct KachingApp: App {
             while sem.wait(timeout: .now()) == .timedOut { RunLoop.main.run(until: Date().addingTimeInterval(0.05)) }
             exit(0)
         }
+        // `Kaching --notif-status`: what macOS allows for Kaching's notifications.
+        if args.contains("--notif-status") {
+            let sem = DispatchSemaphore(value: 0)
+            Task { @MainActor in print(await Model().notificationStatus()); sem.signal() }
+            while sem.wait(timeout: .now()) == .timedOut { RunLoop.main.run(until: Date().addingTimeInterval(0.05)) }
+            exit(0)
+        }
         // `Kaching --launch-status`: whether Kaching opens at login.
         if args.contains("--launch-status") {
             let st = SMAppService.mainApp.status
