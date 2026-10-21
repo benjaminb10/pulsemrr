@@ -130,6 +130,14 @@ extension Model {
             let mrr = facts.filter { $0.pays(at: now) }.reduce(0) { $0 + $1.monthly }
             m.mrr[a.id] = ["usd": mrr]
             m.mrrDetail[a.id]?.real = ["usd": mrr]
+            // Trial outcomes from the same made-up subscriptions, so every figure agrees
+            let ended = facts.filter { ($0.trialEnd ?? .distantFuture) <= now }
+            let payingNow = ended.filter { $0.pays(at: now) }.count
+            let failedNow = ended.count / 12
+            m.mrrDetail[a.id]?.trialsEnded = ended.count
+            m.mrrDetail[a.id]?.trialsPaying = payingNow
+            m.mrrDetail[a.id]?.trialsFailed = failedNow
+            m.mrrDetail[a.id]?.trialsCancelled = max(0, ended.count - payingNow - failedNow)
         }
         m.prefs.goal = 25000
         m.dashboardUpdated = now

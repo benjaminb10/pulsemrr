@@ -35,6 +35,7 @@ Free, open source, no server. Your keys never leave your Mac.</p>
 
 Click the **Dashboard** card under today's figure (or press ⌘D), or a project, to open a full window that follows every project over time:
 
+- **Real MRR and trials:** the last 30 days day by day, then where your running trials lead, once if every trial pays and once at your real conversion rate, with each day's new trials, new payers and cancelled trials underneath.
 - **MRR over 3, 6 or 12 months**, all projects stacked or one at a time. Hover the chart to read any week.
 - **Where the MRR comes from and goes**, month by month: new customers, upgrades, returning customers, downgrades and cancellations, with the net change.
 - **The numbers that matter:** net new MRR, paying customers, revenue per customer, customer and revenue churn, lifetime value, trial conversion.
