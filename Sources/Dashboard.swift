@@ -156,6 +156,7 @@ struct DashboardContent: View {
         VStack(alignment: .leading, spacing: 18) {
             header
             KpiGrid(model: model)
+            if project == nil { TodayCard(model: model) }
             // The goal is about the whole business
             if model.dashboardAll { GoalCard(model: model) }
             ProjectionSection(model: model)
@@ -841,6 +842,69 @@ struct ProjectsCard: View {
                 }
             }
         }
+    }
+}
+
+// MARK: Today
+
+/// Today's takings, yesterday's and today's new customers, project by project: the menu bar panel's figures, broken down.
+struct TodayCard: View {
+    @ObservedObject var model: Model
+    var body: some View {
+        let accounts = model.dashboardAccounts
+        let rows = accounts.sorted { model.convert(model.takings($0, 0)) > model.convert(model.takings($1, 0)) }
+        let today = accounts.reduce(0) { $0 + model.convert(model.takings($1, 0)) }
+        let yesterday = accounts.reduce(0) { $0 + model.convert(model.takings($1, 1)) }
+        let signups = accounts.reduce(0) { $0 + model.newCustomers($1, 0) }
+        Card(title: String(localized: "Today"), subtitle: String(localized: "Takings and new customers, by project. Click one to open it.")) {
+            Delta(today: today, yesterday: yesterday)
+        } content: {
+            Grid(alignment: .trailing, horizontalSpacing: 16, verticalSpacing: 0) {
+                GridRow {
+                    Text("Project").gridColumnAlignment(.leading)
+                    Text("Today"); Text("Yesterday"); Text("New customers")
+                }
+                .font(.caption.weight(.medium)).foregroundStyle(.secondary)
+                .padding(.bottom, 6)
+                ForEach(rows) { a in
+                    let t = model.convert(model.takings(a, 0)), y = model.convert(model.takings(a, 1)), n = model.newCustomers(a, 0)
+                    Divider().gridCellUnsizedAxes(.horizontal).opacity(0.5)
+                    GridRow {
+                        HStack(spacing: 8) {
+                            AccountIcon(model: model, account: a, size: 20)
+                            Text(a.name).lineLimit(1)
+                            Spacer(minLength: 0)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .gridColumnAlignment(.leading)
+                        figure(t, plus: true).fontWeight(.semibold)
+                        figure(y)
+                        Text(n > 0 ? "\(n)" : "–").foregroundStyle(n > 0 ? Color.primary : Color.secondary.opacity(0.5))
+                    }
+                    .font(.callout).monospacedDigit()
+                    .padding(.vertical, 8)
+                    .contentShape(Rectangle())
+                    .onTapGesture { model.dashboardScope = a.id }
+                    .help(String(localized: "Show only this project"))
+                }
+                if rows.count > 1 {
+                    Divider().gridCellUnsizedAxes(.horizontal)
+                    GridRow {
+                        Text("Total").fontWeight(.semibold).gridColumnAlignment(.leading)
+                        figure(today, plus: true).fontWeight(.bold)
+                        figure(yesterday).fontWeight(.semibold)
+                        Text("\(signups)").fontWeight(.semibold)
+                    }
+                    .font(.callout).monospacedDigit()
+                    .padding(.top, 8)
+                }
+            }
+        }
+    }
+
+    private func figure(_ v: Int, plus: Bool = false) -> some View {
+        Text(v > 0 ? (plus ? "+" : "") + Fmt.money(v, model, compact: false) : "–")
+            .foregroundStyle(v > 0 ? (plus ? Palette.money : Color.primary) : Color.secondary.opacity(0.5))
     }
 }
 
