@@ -4,10 +4,10 @@
     <title>PulseMRR</title>
     <link>https://github.com/benjaminb10/pulsemrr</link>
     <item>
-      <title>PulseMRR 0.9.9</title>
-      <pubDate>Thu, 22 Oct 2026 20:15:40 +0000</pubDate>
-      <sparkle:version>37</sparkle:version>
-      <sparkle:shortVersionString>0.9.9</sparkle:shortVersionString>
+      <title>PulseMRR 0.9.10</title>
+      <pubDate>Thu, 22 Oct 2026 20:31:51 +0000</pubDate>
+      <sparkle:version>39</sparkle:version>
+      <sparkle:shortVersionString>0.9.10</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
       <description><![CDATA[
 <style>
@@ -19,11 +19,13 @@
   a { color: #594FE0; }
 </style>
 <ul dir="auto">
-<li><strong>Tableau de bord, carte Aujourd'hui</strong> : l'encaissé du jour, celui d'hier et les nouveaux clients de chaque projet, avec le total et la comparaison avec hier. Un clic sur un projet l'ouvre.</li>
-<li><strong>Dashboard, Today card</strong>: today's takings, yesterday's and new customers for each project, with the total and the change since yesterday. Click a project to open it.</li>
+<li><strong>Apps mobiles via RevenueCat</strong> : ajoute un projet RevenueCat avec une clé secrète API v2 (lecture seule sur Charts &amp; metrics et Project configuration). Revenu du jour et d'hier, nouveaux clients, MRR, abonnés et essais s'affichent à côté des projets Stripe, avec l'icône de l'app, et une hausse du revenu du jour arrive en notification de vente.</li>
+<li>Les journées négatives (remboursement) s'affichent en rouge dans le détail par projet.</li>
+<li><strong>Mobile apps through RevenueCat</strong>: add a RevenueCat project with a secret API v2 key (read only on Charts &amp; metrics and Project configuration). Today's and yesterday's revenue, new customers, MRR, subscribers and trials show next to your Stripe projects, with the app's icon, and a rise in today's revenue comes as a sale notification.</li>
+<li>Days below zero (refunds) show in red in the per-project breakdown.</li>
 </ul>
       ]]></description>
-      <enclosure url="https://github.com/benjaminb10/pulsemrr/releases/download/v0.9.9/PulseMRR.dmg" type="application/octet-stream" sparkle:edSignature="SaGDFYsTe8cblEbmjJxqPA0ZIH3A5u7DzaxpyVlRZ1CBj4cRb7KMADLqcFiMkTYlVdvpATnlLhzGeeqrY47hAg==" length="3764693" />
+      <enclosure url="https://github.com/benjaminb10/pulsemrr/releases/download/v0.9.10/PulseMRR.dmg" type="application/octet-stream" sparkle:edSignature="9Quai8cG0bf5LKo9wvh+FoN2SLjvgQh76xYtbVnJTSZ3n6m6CiyDemCefW+LjpaAtAnpwxZYgAXh+pojEUSTBw==" length="3835742" />
     </item>
   </channel>
 </rss>
