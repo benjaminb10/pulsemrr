@@ -280,3 +280,5 @@
 "%lld quiet projects" = "%lld projets sans activité";
 "%lld quiet project" = "%lld projet sans activité";
 "Nothing collected in 30 days, no MRR. A project that sells leaves this list by itself." = "Rien encaissé en 30 jours, pas de MRR. Un projet qui vend sort tout seul de cette liste.";
+"%lld payments today" = "%lld paiements aujourd'hui";
+"%lld payment today" = "%lld paiement aujourd'hui";

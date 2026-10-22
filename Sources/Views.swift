@@ -14,8 +14,6 @@ struct MenuPanel: View {
     @ObservedObject var model: Model
     @Environment(\.openWindow) private var openWindow
     @Environment(\.isSnapshot) private var isSnapshot
-    /// The header unfolds into today's figures project by project; remembered between openings.
-    @AppStorage("todayOpen") private var todayOpen = false
     @State private var sectionsHeight: CGFloat = 600
     @AppStorage("quietOpen") private var quietOpen = false
 
@@ -27,8 +25,9 @@ struct MenuPanel: View {
                 Image(nsImage: NSWorkspace.shared.icon(forFile: Bundle.main.bundlePath)).resizable().frame(width: 18, height: 18)
                 Text(verbatim: "PulseMRR").font(.subheadline.weight(.semibold))
                 Spacer()
+                if !model.accounts.isEmpty { DashboardButton { openDashboard(nil) } }
             }
-            .padding(.horizontal, 6).padding(.top, 2)
+            .padding(.leading, 6).padding(.top, 2)
             // Taller than the screen with many projects: the cards scroll, the name and the footer stay
             if isSnapshot { sections } else {
                 ScrollView(.vertical, showsIndicators: false) {
@@ -52,13 +51,12 @@ struct MenuPanel: View {
                 empty.padding(16).frame(maxWidth: .infinity, alignment: .leading).panelCard()
             } else {
                 header.padding(16).panelCard()
-                DashboardTeaser(model: model) { openDashboard(nil) }
                 if !model.todos.isEmpty { TodoLine(model: model) }
                 VStack(spacing: 0) {
                     HStack {
                         Text("Projects").font(.subheadline.weight(.semibold))
                         Spacer()
-                        Text("MRR").font(.caption).foregroundStyle(.tertiary)
+                        Text("Today").font(.caption).foregroundStyle(.tertiary)
                     }
                     .padding(.horizontal, 14).padding(.top, 12).padding(.bottom, 4)
                     let quiet = model.byTakings.filter(model.isQuiet)
@@ -91,14 +89,15 @@ struct MenuPanel: View {
         }
     }
 
-    /// One figure that matters, and one quiet line of context under it.
+    /// One figure that matters, and one quiet line of context under it: yesterday, new customers, the MRR and its year.
     private var header: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        let trend = model.mrrTrend()
+        return VStack(alignment: .leading, spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
                 HStack {
                     Text("Today").font(.callout.weight(.medium)).foregroundStyle(.secondary)
                     Spacer()
-                    Image(systemName: todayOpen ? "chevron.up" : "chevron.down").font(.system(size: 10, weight: .semibold)).foregroundStyle(.tertiary)
+                    Delta(today: model.convert(model.takings(0)), yesterday: model.convert(model.takings(1)))
                 }
                 Amount(model: model, sums: model.takings(0), font: .system(size: 32, weight: .semibold, design: .rounded))
             }
@@ -108,17 +107,17 @@ struct MenuPanel: View {
                 stat("New customers") { Text("\(model.newCustomers(0))").font(.callout.weight(.semibold)).monospacedDigit() }
                     .help(String(localized: "People who became Stripe customers today, trials included."))
                 Rectangle().fill(Palette.line).frame(width: 1, height: 28).padding(.horizontal, 12)
-                stat("MRR") { Amount(model: model, sums: model.mrrTotal, font: .callout.weight(.semibold), compact: true, approxMark: false) }
-            }
-            if todayOpen {
-                Hairline()
-                TodayBreakdown(model: model)
+                stat("MRR") {
+                    HStack(spacing: 8) {
+                        Amount(model: model, sums: model.mrrTotal, font: .callout.weight(.semibold), compact: true, approxMark: false)
+                        if trend.count > 1 && (trend.max() ?? 0) > 0 {
+                            Sparkline(values: trend, color: Palette.brand, tip: String(localized: "MRR, last 12 months")).frame(width: 44, height: 16)
+                        }
+                    }
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .contentShape(Rectangle())
-        .onTapGesture { withAnimation(.easeOut(duration: 0.15)) { todayOpen.toggle() } }
-        .help(String(localized: todayOpen ? "Hide the detail by project" : "Show the detail by project"))
     }
 
     private func stat<V: View>(_ label: LocalizedStringKey, @ViewBuilder _ value: () -> V) -> some View {
@@ -173,37 +172,21 @@ extension View {
     }
 }
 
-/// The way into the dashboard: a card of its own under today's figure, with the MRR's last 12 months.
-struct DashboardTeaser: View {
-    @ObservedObject var model: Model
+/// The way into the dashboard, next to the app's name.
+struct DashboardButton: View {
     let open: () -> Void
     @State private var hover = false
 
     var body: some View {
-        let trend = model.mrrTrend()
         Button(action: open) {
-            HStack(spacing: 12) {
-                Image(systemName: "chart.xyaxis.line")
-                    .font(.system(size: 15, weight: .semibold)).foregroundStyle(.white)
-                    .frame(width: 32, height: 32)
-                    .background(LinearGradient(colors: [Palette.brand, Palette.mint], startPoint: .topLeading, endPoint: .bottomTrailing),
-                                in: RoundedRectangle(cornerRadius: 9))
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Dashboard").font(.subheadline.weight(.semibold))
-                    Text("MRR, churn, best customers").font(.caption).foregroundStyle(.secondary).lineLimit(1)
-                }
-                Spacer(minLength: 6)
-                if trend.count > 1 && (trend.max() ?? 0) > 0 {
-                    Sparkline(values: trend, color: Palette.brand, tip: String(localized: "MRR, last 12 months")).frame(width: 64, height: 24)
-                }
-                Image(systemName: "chevron.right").font(.system(size: 11, weight: .semibold)).foregroundStyle(.tertiary)
+            HStack(spacing: 5) {
+                Image(systemName: "chart.xyaxis.line").font(.system(size: 10, weight: .semibold))
+                Text("Dashboard").font(.caption.weight(.semibold))
             }
-            .padding(.horizontal, 12).padding(.vertical, 10)
-            .background(LinearGradient(colors: [Palette.brand.opacity(hover ? 0.13 : 0.08), Palette.mint.opacity(hover ? 0.11 : 0.06)],
-                                       startPoint: .leading, endPoint: .trailing), in: RoundedRectangle(cornerRadius: 12))
-            .background(Palette.surface, in: RoundedRectangle(cornerRadius: 12))
-            .overlay(RoundedRectangle(cornerRadius: 12).stroke(Palette.brand.opacity(0.22)))
-            .contentShape(RoundedRectangle(cornerRadius: 12))
+            .foregroundStyle(Palette.brand)
+            .padding(.horizontal, 9).padding(.vertical, 5)
+            .background(Palette.brand.opacity(hover ? 0.16 : 0.10), in: Capsule())
+            .contentShape(Capsule())
         }
         .buttonStyle(.plain)
         .keyboardShortcut("d", modifiers: .command)
@@ -293,12 +276,19 @@ struct ProjectRow: View {
                 detail(d).font(.caption).foregroundStyle(.secondary).lineLimit(1)
             }
             Spacer(minLength: 8)
-            Sparkline(values: model.month(account)).frame(width: 64, height: 22)
+            Sparkline(values: model.month(account)).frame(width: 52, height: 22)
+            // Today's takings first, the MRR under it
             VStack(alignment: .trailing, spacing: 1) {
-                Amount(model: model, sums: model.mrr[account.id] ?? [:], font: .system(size: 15, weight: .semibold, design: .rounded), compact: true, dimZero: true, approxMark: false)
-                Text("MRR").font(.caption2).foregroundStyle(.tertiary)
+                let today = model.convert(model.takings(account, 0))
+                Text(today > 0 ? "+" + Money.format(today, model.currency, compact: true) : today < 0 ? "−" + Money.format(-today, model.currency, compact: true) : "–")
+                    .font(.system(size: 15, weight: .semibold, design: .rounded)).monospacedDigit()
+                    .foregroundStyle(today > 0 ? Palette.money : today < 0 ? Palette.loss : Color.secondary.opacity(0.5))
+                    .lineLimit(1).fixedSize()
+                let mrr = model.convert(model.mrr[account.id] ?? [:])
+                Text(mrr > 0 ? "MRR " + Money.format(mrr, model.currency, compact: true) : " ").font(.caption2).foregroundStyle(.tertiary)
+                    .monospacedDigit().lineLimit(1).fixedSize()
             }
-            .frame(width: 66, alignment: .trailing)
+            .frame(minWidth: 74, alignment: .trailing)
         }
         .padding(.horizontal, 14).padding(.vertical, 9)
         .help(tooltip(d))
@@ -318,11 +308,11 @@ struct ProjectRow: View {
         return lines.joined(separator: "\n")
     }
 
-    /// Today first (sales, new customers), then this project's own signals, all on one line.
+    /// Yesterday and today's new customers, then this project's own signals, all on one line (today's takings are on the right).
     private func detail(_ d: MrrSnapshot?) -> Text {
         var parts: [Text] = []
-        let today = model.convert(model.takings(account, 0))
-        if today > 0 { parts.append(Text("+" + Money.format(today, model.currency, compact: true)).foregroundColor(Palette.money).fontWeight(.medium)) }
+        let yesterday = model.convert(model.takings(account, 1))
+        if yesterday != 0 { parts.append(Text("Yesterday") + Text(" " + Money.format(yesterday, model.currency, compact: true))) }
         let n = model.newCustomers(account, 0)
         if n > 0 { parts.append(Text(Image(systemName: "person.fill")) + Text(" \(n)")) }
         if let d {
@@ -331,7 +321,13 @@ struct ProjectRow: View {
             if d.leavingCount > 0 { parts.append(Text(String(format: String(localized: d.leavingCount > 1 ? "%lld cancellations" : "%lld cancellation"), d.leavingCount))) }
         }
         if let err = model.errors[account.id] { return Text(err).foregroundColor(.orange) }
-        if parts.isEmpty { return Text("Quiet today") }
+        if parts.isEmpty {
+            // Money today but nothing else to say: how many payments made it
+            let start = Calendar.current.startOfDay(for: Date())
+            let sales = model.recent.filter { $0.accountID == account.id && $0.created >= start && [.sale, .newSubscriber, .trialConverted].contains($0.kind) }.count
+            if sales > 0 { return Text(String(format: String(localized: sales > 1 ? "%lld payments today" : "%lld payment today"), sales)) }
+            return Text("Quiet today")
+        }
         parts = Array(parts.prefix(2))
         return parts.dropFirst().reduce(parts[0]) { $0 + Text("  ·  ").foregroundColor(Color.secondary.opacity(0.5)) + $1 }
     }
@@ -484,48 +480,6 @@ struct WeekChart: View {
                         .foregroundStyle(isToday ? .primary : .secondary)
                 }
                 .frame(maxWidth: .infinity)
-            }
-        }
-    }
-}
-
-/// Today, yesterday and new customers for each project: what the header's totals are made of.
-struct TodayBreakdown: View {
-    @ObservedObject var model: Model
-    @AppStorage("quietOpen") private var quietOpen = false
-    var body: some View {
-        let all = model.byTakings
-        let quiet = all.filter(model.isQuiet)
-        let rows = all.filter { !model.isQuiet($0) } + (quietOpen ? quiet : [])
-        Grid(alignment: .trailing, horizontalSpacing: 14, verticalSpacing: 8) {
-            GridRow {
-                Text("Project").gridColumnAlignment(.leading)
-                Text("Today")
-                Text("Yesterday")
-                Image(systemName: "person.fill").help(String(localized: "New customers"))
-            }
-            .font(.caption2.weight(.medium)).foregroundStyle(.tertiary)
-            ForEach(rows) { a in
-                let today = model.convert(model.takings(a, 0)), n = model.newCustomers(a, 0)
-                GridRow {
-                    HStack(spacing: 7) {
-                        AccountIcon(model: model, account: a, size: 16)
-                        Text(a.name).lineLimit(1)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    // A refund can take the day below zero
-                    Text(today > 0 ? "+" + Money.format(today, model.currency, compact: true) : today < 0 ? "−" + Money.format(-today, model.currency, compact: true) : "–")
-                        .fontWeight(.semibold).foregroundStyle(today > 0 ? Palette.money : today < 0 ? Palette.loss : Color.secondary.opacity(0.5))
-                    Amount(model: model, sums: model.takings(a, 1), font: .caption, compact: true, dimZero: true, approxMark: false)
-                    Text(n > 0 ? "\(n)" : "–").foregroundStyle(n > 0 ? Color.primary : Color.secondary.opacity(0.5))
-                }
-                .font(.caption).monospacedDigit()
-            }
-            if !quiet.isEmpty {
-                GridRow {
-                    QuietToggle(model: model, quiet: quiet, open: $quietOpen, size: 16).gridCellColumns(4)
-                }
-                .font(.caption)
             }
         }
     }
