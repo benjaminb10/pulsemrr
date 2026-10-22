@@ -294,6 +294,12 @@ enum EventKind: String, CaseIterable, Codable, Identifiable {
 
 /// One Stripe event, read into what the app shows.
 struct Activity: Identifiable, Codable, Hashable {
+    /// The same event told as another kind (a payment that is in fact a trial's conversion).
+    func with(kind: EventKind) -> Activity {
+        Activity(id: id, kind: kind, accountID: accountID, created: created, amount: amount, currency: currency,
+                 who: who, customerID: customerID, objectID: objectID, live: live)
+    }
+
     let id: String
     let kind: EventKind
     let accountID: UUID
@@ -306,6 +312,10 @@ struct Activity: Identifiable, Codable, Hashable {
     let live: Bool
 
     var dashboardURL: URL {
+        // A trial's conversion is shown at its first payment: open the payment
+        if objectID.hasPrefix("ch_") || objectID.hasPrefix("py_") {
+            return URL(string: (live ? "https://dashboard.stripe.com/" : "https://dashboard.stripe.com/test/") + "payments/\(objectID)")!
+        }
         if objectID.hasPrefix("rc:") { return URL(string: "https://app.revenuecat.com/projects/\(objectID.dropFirst(3))/overview")! }
         let base = live ? "https://dashboard.stripe.com/" : "https://dashboard.stripe.com/test/"
         let path: String

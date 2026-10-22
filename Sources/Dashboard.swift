@@ -55,10 +55,9 @@ struct DashboardView: View {
             // No blinking cursor in the goal field on opening
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { NSApp.keyWindow?.makeFirstResponder(nil) }
         }
-        .onDisappear {
-            model.dashboardOpen = false
-            NSApp.setActivationPolicy(.accessory)
-        }
+        // Back to a menu bar app only when the window really closes: SwiftUI can call onDisappear when another app
+        // takes the focus, and dropping the Dock icon then sent PulseMRR to the end of ⌘-Tab.
+        .onDisappear { model.dashboardOpen = false }
     }
 }
 
@@ -852,7 +851,7 @@ struct TodayCard: View {
     @ObservedObject var model: Model
     var body: some View {
         let accounts = model.dashboardAccounts
-        let rows = accounts.sorted { model.convert(model.takings($0, 0)) > model.convert(model.takings($1, 0)) }
+        let rows = model.byTakings.filter { a in accounts.contains { $0.id == a.id } }
         let today = accounts.reduce(0) { $0 + model.convert(model.takings($1, 0)) }
         let yesterday = accounts.reduce(0) { $0 + model.convert(model.takings($1, 1)) }
         let signups = accounts.reduce(0) { $0 + model.newCustomers($1, 0) }

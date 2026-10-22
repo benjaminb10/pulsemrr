@@ -13,6 +13,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     func applicationDidFinishLaunching(_ notification: Notification) {
         UNUserNotificationCenter.current().delegate = self
         AppDelegate.updater = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
+        // The dashboard gives PulseMRR a Dock icon and a place in ⌘-Tab; closing it takes them away again.
+        NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: nil, queue: .main) { n in
+            guard let w = n.object as? NSWindow, w.identifier?.rawValue.contains("dashboard") == true || w.title == "PulseMRR" else { return }
+            NSApp.setActivationPolicy(.accessory)
+        }
     }
 
     // Show the banner even though a menu bar app counts as the active app.

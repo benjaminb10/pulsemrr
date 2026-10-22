@@ -16,6 +16,7 @@ struct MenuPanel: View {
     @Environment(\.isSnapshot) private var isSnapshot
     /// The header unfolds into today's figures project by project; remembered between openings.
     @AppStorage("todayOpen") private var todayOpen = false
+    @State private var sectionsHeight: CGFloat = 600
 
     var body: some View {
         // The dashboard's look: white cards on a light grey background
@@ -27,6 +28,25 @@ struct MenuPanel: View {
                 Spacer()
             }
             .padding(.horizontal, 6).padding(.top, 2)
+            // Taller than the screen with many projects: the cards scroll, the name and the footer stay
+            if isSnapshot { sections } else {
+                ScrollView(.vertical, showsIndicators: false) {
+                    sections.background(GeometryReader { g in Color.clear.preference(key: PanelHeight.self, value: g.size.height) })
+                }
+                .frame(height: min(sectionsHeight, (NSScreen.main?.visibleFrame.height ?? 900) - 110))
+                .onPreferenceChange(PanelHeight.self) { sectionsHeight = $0 }
+            }
+            footer.padding(.horizontal, 6).padding(.top, 2)
+        }
+        .padding(10)
+        .frame(width: 400)
+        .task { if !isSnapshot { await model.refreshNotificationsAllowed() } }
+        // A plain, opaque background: the menu's translucent material greys everything out.
+        .background(Palette.canvas)
+    }
+
+    @ViewBuilder private var sections: some View {
+        VStack(alignment: .leading, spacing: 10) {
             if model.accounts.isEmpty {
                 empty.padding(16).frame(maxWidth: .infinity, alignment: .leading).panelCard()
             } else {
@@ -40,7 +60,7 @@ struct MenuPanel: View {
                         Text("MRR").font(.caption).foregroundStyle(.tertiary)
                     }
                     .padding(.horizontal, 14).padding(.top, 12).padding(.bottom, 4)
-                    ForEach(Array(model.active.enumerated()), id: \.element.id) { i, a in
+                    ForEach(Array(model.byTakings.enumerated()), id: \.element.id) { i, a in
                         if i > 0 { Hairline().padding(.leading, 54) }
                         ProjectRow(model: model, account: a)
                             .contentShape(Rectangle())
@@ -52,13 +72,7 @@ struct MenuPanel: View {
                 .panelCard()
                 ActivityList(model: model).padding(.top, 12).padding(.bottom, 6).panelCard()
             }
-            footer.padding(.horizontal, 6).padding(.top, 2)
         }
-        .padding(10)
-        .frame(width: 400)
-        .task { if !isSnapshot { await model.refreshNotificationsAllowed() } }
-        // A plain, opaque background: the menu's translucent material greys everything out.
-        .background(Palette.canvas)
     }
 
     private var empty: some View {
@@ -136,6 +150,11 @@ struct MenuPanel: View {
         openWindow(id: "dashboard")
         NSApp.activate(ignoringOtherApps: true)
     }
+}
+
+private struct PanelHeight: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
 }
 
 extension View {
@@ -466,7 +485,7 @@ struct WeekChart: View {
 struct TodayBreakdown: View {
     @ObservedObject var model: Model
     var body: some View {
-        let rows = model.active.sorted { model.convert(model.takings($0, 0)) > model.convert(model.takings($1, 0)) }
+        let rows = model.byTakings
         Grid(alignment: .trailing, horizontalSpacing: 14, verticalSpacing: 8) {
             GridRow {
                 Text("Project").gridColumnAlignment(.leading)

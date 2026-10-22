@@ -144,6 +144,20 @@ final class Model: ObservableObject {
     var mrrTotal: [String: Int] { sum(active.compactMap { mrr[$0.id] }) }
     var active: [Account] { accounts.filter(\.enabled) }
 
+    /// The watched projects, most money first: the ones that moved today or yesterday, by today's takings, then
+    /// yesterday's, then the last 30 days. Projects with nothing go to the bottom, in the settings' order.
+    var byTakings: [Account] {
+        let score = Dictionary(uniqueKeysWithValues: active.map { a in
+            let t = convert(takings(a, 0)), y = convert(takings(a, 1)), n = newCustomers(a, 0)
+            // Anything today or yesterday (a refund too) puts the project above the quiet ones
+            return (a.id, [t != 0 || y != 0 || n > 0 ? 1 : 0, t, y, n, convert(monthTotal(a))])
+        })
+        return active.enumerated().sorted { l, r in
+            let a = score[l.element.id]!, b = score[r.element.id]!
+            return a != b ? a.lexicographicallyPrecedes(b) == false : l.offset < r.offset
+        }.map(\.element)
+    }
+
     // The MRR breakdown across all watched accounts, converted to the display currency.
     private var details: [MrrSnapshot] { active.compactMap { mrrDetail[$0.id] } }
     var atRiskTotal: (amount: Int, count: Int) { (convert(sum(details.map(\.atRisk))), details.reduce(0) { $0 + $1.atRiskCount }) }
@@ -248,6 +262,15 @@ final class Model: ObservableObject {
             var acts: [Activity] = []
             for e in fresh {
                 guard var act = Activity.from(e, account: a.id) else { continue }
+                // Stripe marks a trial active before charging it: the conversion is told at its first payment, or not at all
+                if let cus = act.customerID {
+                    switch act.kind {
+                    case .trialConverted: pendingTrials[cus] = act.created; savePendingTrials(); moneyMoved = true; continue
+                    case .sale where pendingTrials.removeValue(forKey: cus) != nil: act = act.with(kind: .trialConverted); savePendingTrials()
+                    case .paymentFailed, .ended: if pendingTrials.removeValue(forKey: cus) != nil { savePendingTrials() }
+                    default: break
+                    }
+                }
                 if act.who == nil, let cus = act.customerID { act.who = await name(of: cus, c) }
                 remember(act)
                 acts.append(act)
@@ -270,7 +293,7 @@ final class Model: ObservableObject {
     private func loadHistory(_ a: Account, _ c: StripeClient) async {
         guard let raw = try? await c.events(since: Int(Date().addingTimeInterval(-7 * 86400).timeIntervalSince1970)) else { return }
         for e in raw.prefix(30).reversed() {
-            guard var act = Activity.from(e, account: a.id) else { continue }
+            guard var act = Activity.from(e, account: a.id), act.kind != .trialConverted else { continue }
             if act.who == nil, let cus = act.customerID { act.who = await name(of: cus, c) }
             remember(act)
         }
@@ -289,6 +312,11 @@ final class Model: ObservableObject {
         recent.sort { $0.created > $1.created }
         if recent.count > 400 { recent = Array(recent.prefix(400)) }
     }
+
+    /// Trials Stripe marked active whose first payment hasn't come yet, by customer; forgotten after a week.
+    private var pendingTrials: [String: Date] = (Disk.read("pending-trials.json", as: [String: Date].self) ?? [:])
+        .filter { Date().timeIntervalSince($0.value) < 7 * 86400 }
+    private func savePendingTrials() { if persist { Disk.write(pendingTrials, "pending-trials.json") } }
 
     private func saveCursors() { if persist { Disk.write(cursors, "cursors.json") } }
 
