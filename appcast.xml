@@ -4,10 +4,10 @@
     <title>PulseMRR</title>
     <link>https://github.com/benjaminb10/pulsemrr</link>
     <item>
-      <title>PulseMRR 0.9.10</title>
-      <pubDate>Thu, 22 Oct 2026 20:31:51 +0000</pubDate>
-      <sparkle:version>39</sparkle:version>
-      <sparkle:shortVersionString>0.9.10</sparkle:shortVersionString>
+      <title>PulseMRR 0.9.11</title>
+      <pubDate>Thu, 22 Oct 2026 21:03:26 +0000</pubDate>
+      <sparkle:version>41</sparkle:version>
+      <sparkle:shortVersionString>0.9.11</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
       <description><![CDATA[
 <style>
@@ -19,13 +19,17 @@
   a { color: #594FE0; }
 </style>
 <ul dir="auto">
-<li><strong>Apps mobiles via RevenueCat</strong> : ajoute un projet RevenueCat avec une clé secrète API v2 (lecture seule sur Charts &amp; metrics et Project configuration). Revenu du jour et d'hier, nouveaux clients, MRR, abonnés et essais s'affichent à côté des projets Stripe, avec l'icône de l'app, et une hausse du revenu du jour arrive en notification de vente.</li>
-<li>Les journées négatives (remboursement) s'affichent en rouge dans le détail par projet.</li>
-<li><strong>Mobile apps through RevenueCat</strong>: add a RevenueCat project with a secret API v2 key (read only on Charts &amp; metrics and Project configuration). Today's and yesterday's revenue, new customers, MRR, subscribers and trials show next to your Stripe projects, with the app's icon, and a rise in today's revenue comes as a sale notification.</li>
-<li>Days below zero (refunds) show in red in the per-project breakdown.</li>
+<li><strong>Essai converti, au bon moment</strong> : Stripe passe un abonnement en actif avant de le débiter. PulseMRR attend maintenant le premier paiement pour annoncer « Essai converti » avec son montant, en une seule notification (plus de « vente » en double). Si le paiement échoue, seule la notification d'échec arrive.</li>
+<li><strong>Le panneau défile</strong> quand il dépasse la hauteur de l'écran ; le nom et la barre du bas restent en place.</li>
+<li><strong>Projets classés par encaissé</strong> : ceux qui ont bougé aujourd'hui ou hier d'abord, par montant du jour, puis d'hier, puis des 30 derniers jours ; les projets calmes en bas.</li>
+<li><strong>Tableau de bord</strong> : PulseMRR garde sa place dans ⌘Tab tant que la fenêtre est ouverte, au lieu de passer en dernier dès qu'on change d'app.</li>
+<li><strong>Trial conversions at the right time</strong>: one notification at the first payment, with its amount, instead of one when Stripe marks the subscription active and another for the sale.</li>
+<li><strong>The panel scrolls</strong> when it is taller than the screen.</li>
+<li><strong>Projects sorted by takings</strong>, quiet ones at the bottom.</li>
+<li><strong>Dashboard</strong>: PulseMRR keeps its place in ⌘-Tab while the window is open.</li>
 </ul>
       ]]></description>
-      <enclosure url="https://github.com/benjaminb10/pulsemrr/releases/download/v0.9.10/PulseMRR.dmg" type="application/octet-stream" sparkle:edSignature="9Quai8cG0bf5LKo9wvh+FoN2SLjvgQh76xYtbVnJTSZ3n6m6CiyDemCefW+LjpaAtAnpwxZYgAXh+pojEUSTBw==" length="3835742" />
+      <enclosure url="https://github.com/benjaminb10/pulsemrr/releases/download/v0.9.11/PulseMRR.dmg" type="application/octet-stream" sparkle:edSignature="vCyIjN+VG2CaLFkZh3o6s9jjyEJ3PO0l+dpvXPJxT9cDKU5gEzed5rTteokmpCZ7ATuZWRwQGECXZCyEUdkdDw==" length="3873996" />
     </item>
   </channel>
 </rss>
