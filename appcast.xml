@@ -4,10 +4,10 @@
     <title>PulseMRR</title>
     <link>https://github.com/benjaminb10/pulsemrr</link>
     <item>
-      <title>PulseMRR 0.9.7</title>
-      <pubDate>Thu, 22 Oct 2026 00:12:32 +0000</pubDate>
-      <sparkle:version>33</sparkle:version>
-      <sparkle:shortVersionString>0.9.7</sparkle:shortVersionString>
+      <title>PulseMRR 0.9.8</title>
+      <pubDate>Thu, 22 Oct 2026 19:39:03 +0000</pubDate>
+      <sparkle:version>35</sparkle:version>
+      <sparkle:shortVersionString>0.9.8</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
       <description><![CDATA[
 <style>
@@ -18,9 +18,12 @@
   code { font: 12px ui-monospace, monospace; background: rgba(127,127,127,.15); padding: 1px 4px; border-radius: 4px; }
   a { color: #594FE0; }
 </style>
-<p dir="auto">The menu bar panel shows PulseMRR's name and icon at the top.</p>
+<ul dir="auto">
+<li><strong>Aujourd'hui, par projet</strong> : un clic sur la carte du jour déplie l'encaissé d'aujourd'hui, celui d'hier et les nouveaux clients de chaque projet. Un autre clic la replie, et le choix est mémorisé.</li>
+<li><strong>Today, per project</strong>: click the today card to see today's takings, yesterday's and new customers for each project. Click again to fold it; PulseMRR remembers.</li>
+</ul>
       ]]></description>
-      <enclosure url="https://github.com/benjaminb10/pulsemrr/releases/download/v0.9.7/PulseMRR.dmg" type="application/octet-stream" sparkle:edSignature="7i9mm15TSWkF5B/zQJwnYrA70lqTK5IdnFmsQEG7ksWcqZxu9MKTS+4/ipue3bx79TDlK90h2pyjkIP9hQYxAw==" length="3720012" />
+      <enclosure url="https://github.com/benjaminb10/pulsemrr/releases/download/v0.9.8/PulseMRR.dmg" type="application/octet-stream" sparkle:edSignature="D07fmBg3dTHI6PrIKYxdVy8ZIWEtyanJhLt/13WsviqxfkyAOjPSDi7jb3xX91MXLSa/LIVn6vz7mkdiYi+NCw==" length="3734456" />
     </item>
   </channel>
 </rss>
