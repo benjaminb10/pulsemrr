@@ -18,6 +18,13 @@ struct MenuPanel: View {
     var body: some View {
         // The dashboard's look: white cards on a light grey background
         VStack(alignment: .leading, spacing: 10) {
+            // The app's name, so the panel says what it is
+            HStack(spacing: 7) {
+                Image(nsImage: NSWorkspace.shared.icon(forFile: Bundle.main.bundlePath)).resizable().frame(width: 18, height: 18)
+                Text(verbatim: "PulseMRR").font(.subheadline.weight(.semibold))
+                Spacer()
+            }
+            .padding(.horizontal, 6).padding(.top, 2)
             if model.accounts.isEmpty {
                 empty.padding(16).frame(maxWidth: .infinity, alignment: .leading).panelCard()
             } else {
