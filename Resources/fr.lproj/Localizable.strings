@@ -270,3 +270,5 @@
 "Tick at least one project" = "Cochez au moins un projet";
 "Pick the projects to add up in the sidebar, or tick All projects." = "Choisissez dans la barre latérale les projets à additionner, ou cochez Tous les projets.";
 "Tick all projects" = "Cocher tous les projets";
+"Hide the detail by project" = "Masquer le détail par projet";
+"Show the detail by project" = "Voir le détail par projet";

@@ -14,6 +14,8 @@ struct MenuPanel: View {
     @ObservedObject var model: Model
     @Environment(\.openWindow) private var openWindow
     @Environment(\.isSnapshot) private var isSnapshot
+    /// The header unfolds into today's figures project by project; remembered between openings.
+    @AppStorage("todayOpen") private var todayOpen = false
 
     var body: some View {
         // The dashboard's look: white cards on a light grey background
@@ -71,7 +73,11 @@ struct MenuPanel: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
-                Text("Today").font(.callout.weight(.medium)).foregroundStyle(.secondary)
+                HStack {
+                    Text("Today").font(.callout.weight(.medium)).foregroundStyle(.secondary)
+                    Spacer()
+                    Image(systemName: todayOpen ? "chevron.up" : "chevron.down").font(.system(size: 10, weight: .semibold)).foregroundStyle(.tertiary)
+                }
                 Amount(model: model, sums: model.takings(0), font: .system(size: 32, weight: .semibold, design: .rounded))
             }
             HStack(spacing: 0) {
@@ -82,8 +88,15 @@ struct MenuPanel: View {
                 Rectangle().fill(Palette.line).frame(width: 1, height: 28).padding(.horizontal, 12)
                 stat("MRR") { Amount(model: model, sums: model.mrrTotal, font: .callout.weight(.semibold), compact: true, approxMark: false) }
             }
+            if todayOpen {
+                Hairline()
+                TodayBreakdown(model: model)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+        .onTapGesture { withAnimation(.easeOut(duration: 0.15)) { todayOpen.toggle() } }
+        .help(String(localized: todayOpen ? "Hide the detail by project" : "Show the detail by project"))
     }
 
     private func stat<V: View>(_ label: LocalizedStringKey, @ViewBuilder _ value: () -> V) -> some View {
@@ -447,35 +460,33 @@ struct WeekChart: View {
     }
 }
 
-struct ProjectsTable: View {
+/// Today, yesterday and new customers for each project: what the header's totals are made of.
+struct TodayBreakdown: View {
     @ObservedObject var model: Model
     var body: some View {
-        Grid(alignment: .trailing, horizontalSpacing: 14, verticalSpacing: 9) {
+        let rows = model.active.sorted { model.convert(model.takings($0, 0)) > model.convert(model.takings($1, 0)) }
+        Grid(alignment: .trailing, horizontalSpacing: 14, verticalSpacing: 8) {
             GridRow {
                 Text("Project").gridColumnAlignment(.leading)
                 Text("Today")
                 Text("Yesterday")
-                Text("MRR")
+                Image(systemName: "person.fill").help(String(localized: "New customers"))
             }
-            .font(.caption2.weight(.medium)).foregroundStyle(.secondary).textCase(.uppercase)
-            ForEach(model.active) { a in
+            .font(.caption2.weight(.medium)).foregroundStyle(.tertiary)
+            ForEach(rows) { a in
+                let today = model.convert(model.takings(a, 0)), n = model.newCustomers(a, 0)
                 GridRow {
-                    HStack(spacing: 8) {
-                        AccountIcon(model: model, account: a, size: 20)
+                    HStack(spacing: 7) {
+                        AccountIcon(model: model, account: a, size: 16)
                         Text(a.name).lineLimit(1)
-                        Spacer(minLength: 0)
-                        if model.errors[a.id] != nil {
-                            Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
-                                .help(model.errors[a.id] ?? "")
-                        }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .gridColumnAlignment(.leading)
-                    Amount(model: model, sums: model.takings(a, 0), font: .callout.weight(.semibold), compact: true, dimZero: true, approxMark: false)
-                    Amount(model: model, sums: model.takings(a, 1), font: .callout, compact: true, dimZero: true, approxMark: false)
-                    Amount(model: model, sums: model.mrr[a.id] ?? [:], font: .callout, compact: true, dimZero: true, approxMark: false)
+                    Text(today > 0 ? "+" + Money.format(today, model.currency, compact: true) : "–")
+                        .fontWeight(.semibold).foregroundStyle(today > 0 ? Palette.money : Color.secondary.opacity(0.5))
+                    Amount(model: model, sums: model.takings(a, 1), font: .caption, compact: true, dimZero: true, approxMark: false)
+                    Text(n > 0 ? "\(n)" : "–").foregroundStyle(n > 0 ? Color.primary : Color.secondary.opacity(0.5))
                 }
-                .font(.callout)
+                .font(.caption).monospacedDigit()
             }
         }
     }
