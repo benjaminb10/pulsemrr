@@ -89,3 +89,10 @@ extension Optional {
         return await f(v)
     }
 }
+
+/// What the dashboard keeps of a RevenueCat project between launches.
+struct RevenueCatHistory: Codable {
+    let currency: String
+    let revenue: [Date: Int]
+    let mrr: [Date: Int]
+}

@@ -17,6 +17,7 @@ struct MenuPanel: View {
     /// The header unfolds into today's figures project by project; remembered between openings.
     @AppStorage("todayOpen") private var todayOpen = false
     @State private var sectionsHeight: CGFloat = 600
+    @AppStorage("quietOpen") private var quietOpen = false
 
     var body: some View {
         // The dashboard's look: white cards on a light grey background
@@ -60,12 +61,19 @@ struct MenuPanel: View {
                         Text("MRR").font(.caption).foregroundStyle(.tertiary)
                     }
                     .padding(.horizontal, 14).padding(.top, 12).padding(.bottom, 4)
-                    ForEach(Array(model.byTakings.enumerated()), id: \.element.id) { i, a in
+                    let quiet = model.byTakings.filter(model.isQuiet)
+                    let shown = model.byTakings.filter { !model.isQuiet($0) } + (quietOpen ? quiet : [])
+                    ForEach(Array(shown.enumerated()), id: \.element.id) { i, a in
                         if i > 0 { Hairline().padding(.leading, 54) }
                         ProjectRow(model: model, account: a)
                             .contentShape(Rectangle())
                             .onTapGesture { openDashboard(a.id) }
                             .help(String(localized: "Open this project in the dashboard"))
+                    }
+                    if !quiet.isEmpty {
+                        Hairline().padding(.leading, 14)
+                        QuietToggle(model: model, quiet: quiet, open: $quietOpen)
+                            .font(.caption).padding(.horizontal, 14).padding(.vertical, 9)
                     }
                 }
                 .padding(.bottom, 4)
@@ -484,8 +492,11 @@ struct WeekChart: View {
 /// Today, yesterday and new customers for each project: what the header's totals are made of.
 struct TodayBreakdown: View {
     @ObservedObject var model: Model
+    @AppStorage("quietOpen") private var quietOpen = false
     var body: some View {
-        let rows = model.byTakings
+        let all = model.byTakings
+        let quiet = all.filter(model.isQuiet)
+        let rows = all.filter { !model.isQuiet($0) } + (quietOpen ? quiet : [])
         Grid(alignment: .trailing, horizontalSpacing: 14, verticalSpacing: 8) {
             GridRow {
                 Text("Project").gridColumnAlignment(.leading)
@@ -510,7 +521,36 @@ struct TodayBreakdown: View {
                 }
                 .font(.caption).monospacedDigit()
             }
+            if !quiet.isEmpty {
+                GridRow {
+                    QuietToggle(model: model, quiet: quiet, open: $quietOpen, size: 16).gridCellColumns(4)
+                }
+                .font(.caption)
+            }
         }
+    }
+}
+
+/// The projects with nothing in 30 days, folded into one line; one that sells comes out by itself.
+struct QuietToggle: View {
+    @ObservedObject var model: Model
+    let quiet: [Account]
+    @Binding var open: Bool
+    var size: CGFloat = 18
+
+    var body: some View {
+        HStack(spacing: 7) {
+            HStack(spacing: -size * 0.3) {
+                ForEach(quiet.prefix(5)) { a in AccountIcon(model: model, account: a, size: size) }
+            }
+            Text(String(format: String(localized: quiet.count > 1 ? "%lld quiet projects" : "%lld quiet project"), quiet.count))
+                .foregroundStyle(.secondary)
+            Spacer()
+            Image(systemName: open ? "chevron.up" : "chevron.down").font(.system(size: 9, weight: .semibold)).foregroundStyle(.tertiary)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture { withAnimation(.easeOut(duration: 0.15)) { open.toggle() } }
+        .help(String(localized: "Nothing collected in 30 days, no MRR. A project that sells leaves this list by itself."))
     }
 }
 

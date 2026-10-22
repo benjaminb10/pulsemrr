@@ -80,7 +80,7 @@ struct DashboardSidebar: View {
                 } only: {}
             }
             Section("Projects") {
-                ForEach(model.active) { a in
+                ForEach(model.byTakings) { a in
                     SidebarRow(checked: !model.dashboardExcluded.contains(a.id), partly: false, onlyButton: model.active.count > 1) {
                         AccountIcon(model: model, account: a, size: 18)
                     } label: {
@@ -805,7 +805,8 @@ struct ChurnedCard: View {
 struct ProjectsCard: View {
     @ObservedObject var model: Model
     var body: some View {
-        let rows = model.dashboard.projects.sorted { $0.mrr > $1.mrr }
+        // Already in the panel's order: most money first
+        let rows = model.dashboard.projects
         Card(title: String(localized: "Projects"), subtitle: String(localized: "Last 30 days. Click one to open it.")) {
             Grid(alignment: .trailing, horizontalSpacing: 16, verticalSpacing: 0) {
                 GridRow {

@@ -159,9 +159,18 @@ struct DashboardData {
 enum Analytics {
     private struct Item { let account: UUID; let key: String; let monthly: Int; let fact: SubFact }
 
+    /// A project whose subscriptions live outside Stripe (RevenueCat): its MRR by day and its subscribers now.
+    struct Outside {
+        let mrr: [Date: Int]
+        let subscribers: Int
+        /// The MRR on the last known day at or before `t`.
+        func at(_ t: Date) -> Int { mrr.filter { $0.key <= t }.max(by: { $0.key < $1.key })?.value ?? 0 }
+    }
+
     /// `accounts` is what the window looks at (one project or all); `all` feeds the per-project table.
     static func build(accounts: [Account], all: [Account], facts: [UUID: [SubFact]], revenue: [UUID: [Date: [String: Int]]],
-                      failed: [UUID: [FailedInvoice]], months: Int, convert: (Int, String) -> Int, now: Date = Date()) -> DashboardData {
+                      failed: [UUID: [FailedInvoice]], months: Int, convert: (Int, String) -> Int,
+                      outside: [UUID: Outside] = [:], now: Date = Date()) -> DashboardData {
         func items(_ accs: [Account]) -> [Item] {
             accs.flatMap { a in (facts[a.id] ?? []).map { Item(account: a.id, key: a.id.uuidString + "|" + (($0.email?.isEmpty == false ? $0.email : nil) ?? $0.customer), monthly: convert($0.monthly, $0.currency), fact: $0) } }
         }
@@ -176,6 +185,7 @@ enum Analytics {
             let t = now.addingTimeInterval(-Double(w) * 7 * day)
             var per: [UUID: Int] = [:]
             for it in list where it.fact.pays(at: t) { per[it.account, default: 0] += it.monthly }
+            for (id, o) in outside { per[id] = o.at(t) }
             for a in accounts { d.series.append(.init(date: t, account: a.id, value: per[a.id] ?? 0)) }
         }
 
@@ -188,6 +198,11 @@ enum Analytics {
         }
         d.last30 = movement(list, now.addingTimeInterval(-30 * day), now)
         d.last90 = movement(list, now.addingTimeInterval(-90 * day), now)
+        // RevenueCat projects count in the MRR and its growth; their customers' moves stay in RevenueCat
+        for o in outside.values {
+            d.last30.startMrr += o.at(now.addingTimeInterval(-30 * day)); d.last30.endMrr += o.at(now)
+            d.last30.endCustomers += o.subscribers
+        }
         let full = d.months.dropLast().suffix(3)
         if !full.isEmpty { d.pace = full.reduce(0) { $0 + $1.move.net } / full.count }
 
@@ -244,6 +259,12 @@ enum Analytics {
         }
 
         for a in all {
+            if let o = outside[a.id] {
+                let start = o.at(now.addingTimeInterval(-30 * day)), end = o.at(now)
+                d.projects.append(.init(id: a.id, mrr: end, growth: start > 0 ? Double(end - start) / Double(start) : nil,
+                                        customers: o.subscribers, churn: nil, arpu: o.subscribers > 0 ? end / o.subscribers : 0))
+                continue
+            }
             let m = movement(items([a]), now.addingTimeInterval(-30 * day), now)
             d.projects.append(.init(id: a.id, mrr: m.endMrr,
                                     growth: m.startMrr > 0 ? Double(m.endMrr - m.startMrr) / Double(m.startMrr) : nil,

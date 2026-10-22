@@ -144,6 +144,11 @@ final class Model: ObservableObject {
     var mrrTotal: [String: Int] { sum(active.compactMap { mrr[$0.id] }) }
     var active: [Account] { accounts.filter(\.enabled) }
 
+    /// Nothing in 30 days, no new customer today and no MRR: folded away in the panel until it moves.
+    func isQuiet(_ a: Account) -> Bool {
+        convert(monthTotal(a)) == 0 && newCustomers(a, 0) == 0 && convert(mrr[a.id] ?? [:]) == 0 && errors[a.id] == nil
+    }
+
     /// The watched projects, most money first: the ones that moved today or yesterday, by today's takings, then
     /// yesterday's, then the last 30 days. Projects with nothing go to the bottom, in the settings' order.
     var byTakings: [Account] {
@@ -363,6 +368,31 @@ final class Model: ObservableObject {
         if prefs.kinds.contains(.sale) { notify(act, a) }
     }
 
+    /// RevenueCat projects' MRR day by day over a year, minor units of the display currency: the dashboard's curve.
+    @Published var rcMrr: [UUID: [Date: Int]] = [:]
+    private var rcHistoryRead: [UUID: Date] = [:]
+
+    /// A year of revenue and MRR from RevenueCat's charts, for the dashboard; read again after 10 minutes.
+    private func loadRevenueCatHistory(_ a: Account, force: Bool) async {
+        let id = a.id.uuidString
+        if rcMrr[a.id] == nil, let cached = Disk.read("history/rc-\(id).json", as: RevenueCatHistory.self), cached.currency == currency {
+            rcMrr[a.id] = cached.mrr; revenue[a.id] = cached.revenue.mapValues { [currency: $0] }
+        }
+        if !force, let t = rcHistoryRead[a.id], Date().timeIntervalSince(t) < 600 { return }
+        guard let key = Keychain.load(a.id) else { return }
+        let c = RevenueCatClient(key: key), cur = currency
+        do {
+            let rev = try await c.daily("revenue", a.revenueCatProject, days: 366, currency: cur).mapValues { Int(($0 * 100).rounded()) }
+            let m = try await c.daily("mrr", a.revenueCatProject, days: 366, currency: cur).mapValues { Int(($0 * 100).rounded()) }
+            revenue[a.id] = rev.mapValues { [cur: $0] }
+            rcMrr[a.id] = m
+            rcHistoryRead[a.id] = Date()
+            if persist { Disk.write(RevenueCatHistory(currency: cur, revenue: rev, mrr: m), "history/rc-\(id).json") }
+        } catch {
+            errors[a.id] = error.localizedDescription
+        }
+    }
+
     /// Revenue and new customers for the last 30 days, then the MRR, subscribers and trials, in the display currency.
     private func refreshRevenueCat(_ a: Account) async {
         guard let key = Keychain.load(a.id) else { errors[a.id] = String(localized: "Key not found in the Keychain"); return }
@@ -373,7 +403,10 @@ final class Model: ObservableObject {
             signups[a.id] = (try? await c.daily("customers_new", p, days: 2, currency: cur))?.mapValues { Int($0.rounded()) } ?? [:]
             let o = try await c.overview(p, currency: cur)
             var m = MrrSnapshot()
-            m.real = [cur: Int(((o["mrr"] ?? 0) * 100).rounded())]
+            // The overview rounds the MRR to whole units: the MRR chart's last day has the cents
+            let chart = (try? await c.daily("mrr", p, days: 2, currency: cur)) ?? [:]
+            let mrrValue = chart.max(by: { $0.key < $1.key })?.value ?? o["mrr"] ?? 0
+            m.real = [cur: Int((mrrValue * 100).rounded())]
             m.activeCount = Int(o["active_subscriptions"] ?? 0)
             m.trialCount = Int(o["active_trials"] ?? 0)
             mrr[a.id] = m.real
@@ -431,6 +464,7 @@ final class Model: ObservableObject {
         rebuildDashboard()
         await refreshRates()
         for a in active {
+            if a.isRevenueCat { await loadRevenueCatHistory(a, force: force); rebuildDashboard(); continue }
             guard let c = client(a) else { continue }
             let id = a.id.uuidString
             do {
@@ -468,7 +502,7 @@ final class Model: ObservableObject {
     /// One project's MRR now, from the same subscriptions as the dashboard (on disk from the last run), so it's right
     /// from the first second; the menu's own figure until they're read.
     func mrrNow(_ a: Account) -> Int {
-        guard let f = facts[a.id] else { return convert(mrr[a.id] ?? [:]) }
+        guard !a.isRevenueCat, let f = facts[a.id] else { return convert(mrr[a.id] ?? [:]) }
         let now = Date()
         return f.filter { $0.pays(at: now) }.reduce(0) { $0 + convert($1.monthly, $1.currency) }
     }
@@ -486,8 +520,10 @@ final class Model: ObservableObject {
 
     func rebuildDashboard() {
         let picked = dashboardAccounts
-        dashboard = Analytics.build(accounts: picked, all: picked, facts: facts, revenue: revenue,
-                                    failed: failedInvoices, months: dashboardMonths, convert: convert)
+        let rc = Dictionary(uniqueKeysWithValues: picked.filter(\.isRevenueCat).map { a in
+            (a.id, Analytics.Outside(mrr: rcMrr[a.id] ?? [:], subscribers: mrrDetail[a.id]?.activeCount ?? 0)) })
+        dashboard = Analytics.build(accounts: picked, all: byTakings.filter { a in picked.contains { $0.id == a.id } }, facts: facts, revenue: revenue,
+                                    failed: failedInvoices, months: dashboardMonths, convert: convert, outside: rc)
         projection = Projection.build(accounts: picked, facts: facts, snapshots: mrrDetail, convert: convert)
     }
 

@@ -65,7 +65,40 @@ extension Model {
         m.lastPoll = now.addingTimeInterval(-4)
         demoHistory(m, accounts, prices: [[2900, 4900, 9900], [3900], [1200, 2400], [4900, 19900]],
                     signupsPerWeek: [7, 3, 4, 1.4], churn: [0.035, 0.06, 0.05, 0.02], trials: [true, false, true, false])
+        demoApps(m)
         return m
+    }
+
+    /// A mobile app read through RevenueCat, and a project with nothing going on, folded away in the panel.
+    private static func demoApps(_ m: Model) {
+        var app = Account(name: "Moodboard", emoji: "📱", currency: "usd")
+        app.revenueCatProject = "projdemo"
+        app.useLogo = true
+        m.logos[app.id] = letterIcon("M", NSColor(red: 0.93, green: 0.30, blue: 0.48, alpha: 1))
+        var daily: [Date: [String: Int]] = [:], mrr: [Date: Int] = [:], revenue: [Date: [String: Int]] = [:]
+        for i in 0..<366 {
+            let d = m.day(i)
+            // Started six months ago, growing since
+            let age = max(0, 180 - i)
+            mrr[d] = age * 260
+            let sale = age > 0 ? (i * 37 % 5 == 0 ? 0 : 499 + (i * 53 % 4) * 500) : 0
+            if sale > 0 { revenue[d] = ["usd": sale]; if i < 30 { daily[d] = ["usd": sale] } }
+        }
+        daily[m.day(0)] = ["usd": 2497]; daily[m.day(1)] = ["usd": 1499]
+        m.daily[app.id] = daily
+        m.revenue[app.id] = revenue
+        m.rcMrr[app.id] = mrr
+        m.mrr[app.id] = ["usd": mrr[m.day(0)] ?? 0]
+        var d = MrrSnapshot(); d.real = m.mrr[app.id]!; d.activeCount = 9; d.trialCount = 3
+        m.mrrDetail[app.id] = d
+        m.signups[app.id] = [m.day(0): 6, m.day(1): 4]
+        var quiet = Account(name: "Old Side Project", emoji: "💳", stripeID: "acct_demoquiet", currency: "usd")
+        quiet.useLogo = true
+        m.logos[quiet.id] = letterIcon("O", NSColor(white: 0.55, alpha: 1))
+        m.daily[quiet.id] = [:]
+        m.mrr[quiet.id] = [:]
+        m.facts[quiet.id] = []
+        m.accounts += [app, quiet]
     }
 
     /// 18 months of made-up subscribers per project, growing, paying and leaving, with their payments and failed invoices.

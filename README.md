@@ -14,7 +14,7 @@ Free, open source, no server. Your keys never leave your Mac.</p>
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/panel-dark.png">
-    <img src="docs/panel-light.png" width="400" alt="PulseMRR menu bar panel: today's takings with yesterday, new customers and MRR, failed payments, one row per project with a sparkline and its MRR, and the latest activity">
+    <img src="docs/panel-light.png" width="400" alt="PulseMRR menu bar panel: today's takings with yesterday, new customers and MRR, the same figures project by project, failed payments, one row per project with a sparkline and its MRR, and the latest activity">
   </picture>
 </p>
 
@@ -22,10 +22,10 @@ Free, open source, no server. Your keys never leave your Mac.</p>
 
 - **A notification for what matters**, each one switchable: new sale, new subscriber, new customer, trial started, trial converted, cancellation scheduled, subscription ended, failed payment, refund, dispute, payout. Money coming in plays a cash register sound. Notifications can stay on screen until you dismiss them.
 - **Every Stripe account in one place.** Add as many as you run, each with its project's logo (taken from your Stripe branding or your website) or an emoji. Drag to reorder.
-- **Your mobile apps too, through RevenueCat.** Add a RevenueCat project with a secret API v2 key (read only on Charts & metrics and Project configuration): its revenue, new customers, MRR, subscribers and trials sit next to your Stripe projects, with the app's icon, and a rise in the day's revenue comes as a sale notification (RevenueCat is read every 2 minutes).
+- **Your mobile apps too, through RevenueCat.** Add a RevenueCat project with a secret API v2 key (read only on Charts & metrics and Project configuration): its revenue, new customers, MRR, subscribers and trials sit next to your Stripe projects, with the app's icon, and a rise in the day's revenue comes as a sale notification (RevenueCat is read every 2 minutes). Their revenue and MRR also count in the dashboard's charts.
 - **Today at a glance:** the day's takings, yesterday, today's new customers and your total MRR, with today's amount and new customers right in the menu bar if you want them.
 - **Failed payments on one line.** Expand it to see who failed and open each one in Stripe.
-- **One row per project:** today's takings, new customers, a 30 day sparkline and its MRR. Hover for the details.
+- **One row per project, most money first:** today's takings, new customers, a 30 day sparkline and its MRR. Hover for the details. Projects with nothing in 30 days fold into one line, and come back by themselves as soon as they sell.
 - **MRR you can trust.** Only active subscriptions count. Past due ones are shown as at risk, trials and scheduled cancellations are kept apart, so a failing card never inflates the number.
 - **One currency.** Accounts in dollars and euros add up in the currency you pick (euro, dollar, pound, Swiss franc, Canadian dollar), at the day's ECB rate.
 - **A daily recap** at the hour you choose: the day's total against yesterday, sales, new subscribers, cancellations, and your best project.
