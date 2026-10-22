@@ -4,10 +4,10 @@
     <title>PulseMRR</title>
     <link>https://github.com/benjaminb10/pulsemrr</link>
     <item>
-      <title>PulseMRR 0.9.6</title>
-      <pubDate>Wed, 21 Oct 2026 23:31:40 +0000</pubDate>
-      <sparkle:version>31</sparkle:version>
-      <sparkle:shortVersionString>0.9.6</sparkle:shortVersionString>
+      <title>PulseMRR 0.9.7</title>
+      <pubDate>Thu, 22 Oct 2026 00:12:32 +0000</pubDate>
+      <sparkle:version>33</sparkle:version>
+      <sparkle:shortVersionString>0.9.7</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
       <description><![CDATA[
 <style>
@@ -18,10 +18,9 @@
   code { font: 12px ui-monospace, monospace; background: rgba(127,127,127,.15); padding: 1px 4px; border-radius: 4px; }
   a { color: #594FE0; }
 </style>
-<h2 dir="auto">Your projects, remembered</h2>
-<p dir="auto">The projects you tick in the dashboard's sidebar are kept from one opening to the next, even after a restart. The Dashboard card in the menu bar panel opens on that same selection; clicking a project in the panel still opens the dashboard on that project.</p>
+<p dir="auto">The menu bar panel shows PulseMRR's name and icon at the top.</p>
       ]]></description>
-      <enclosure url="https://github.com/benjaminb10/pulsemrr/releases/download/v0.9.6/PulseMRR.dmg" type="application/octet-stream" sparkle:edSignature="cUn5AxjxkMo3/0CnTTP5ReOLf4bOtCVxElzgTOwTCKEo90usRHDdlB7UTo9Qf/XPOAyR5dFK7AdD1jKe3FmEAQ==" length="3709618" />
+      <enclosure url="https://github.com/benjaminb10/pulsemrr/releases/download/v0.9.7/PulseMRR.dmg" type="application/octet-stream" sparkle:edSignature="7i9mm15TSWkF5B/zQJwnYrA70lqTK5IdnFmsQEG7ksWcqZxu9MKTS+4/ipue3bx79TDlK90h2pyjkIP9hQYxAw==" length="3720012" />
     </item>
   </channel>
 </rss>
