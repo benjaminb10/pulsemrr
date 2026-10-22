@@ -317,6 +317,8 @@ struct Sparkline: View {
     var tip = String(localized: "Sales, last 30 days")
     var body: some View {
         GeometryReader { geo in
+            // Refund days below zero sit on the baseline
+            let values = values.map { max($0, 0) }
             let top = CGFloat(max(values.max() ?? 0, 1)), w = geo.size.width, h = geo.size.height
             let step = values.count > 1 ? w / CGFloat(values.count - 1) : w
             let pts = values.enumerated().map { CGPoint(x: CGFloat($0.offset) * step, y: h - 2 - CGFloat($0.element) / top * (h - 4)) }
@@ -481,8 +483,9 @@ struct TodayBreakdown: View {
                         Text(a.name).lineLimit(1)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    Text(today > 0 ? "+" + Money.format(today, model.currency, compact: true) : "–")
-                        .fontWeight(.semibold).foregroundStyle(today > 0 ? Palette.money : Color.secondary.opacity(0.5))
+                    // A refund can take the day below zero
+                    Text(today > 0 ? "+" + Money.format(today, model.currency, compact: true) : today < 0 ? "−" + Money.format(-today, model.currency, compact: true) : "–")
+                        .fontWeight(.semibold).foregroundStyle(today > 0 ? Palette.money : today < 0 ? Palette.loss : Color.secondary.opacity(0.5))
                     Amount(model: model, sums: model.takings(a, 1), font: .caption, compact: true, dimZero: true, approxMark: false)
                     Text(n > 0 ? "\(n)" : "–").foregroundStyle(n > 0 ? Color.primary : Color.secondary.opacity(0.5))
                 }
@@ -620,9 +623,13 @@ struct AccountRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 TextField("Name", text: $account.name).textFieldStyle(.plain).font(.body.weight(.medium)).labelsHidden()
                 HStack(spacing: 6) {
-                    Text(account.live ? "LIVE" : "TEST").font(.caption2.bold())
-                        .foregroundStyle(account.live ? .green : .orange)
-                    Text(account.stripeID).font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
+                    if account.isRevenueCat {
+                        Text(verbatim: "REVENUECAT").font(.caption2.bold()).foregroundStyle(Color(red: 0.95, green: 0.33, blue: 0.36))
+                    } else {
+                        Text(account.live ? "LIVE" : "TEST").font(.caption2.bold())
+                            .foregroundStyle(account.live ? .green : .orange)
+                    }
+                    Text(account.isRevenueCat ? account.revenueCatProject : account.stripeID).font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
                     if let err = model.errors[account.id] { Text(err).font(.caption).foregroundStyle(.red).lineLimit(1).help(err) }
                 }
             }
@@ -651,24 +658,50 @@ struct AddAccountSheet: View {
     @State private var busy = false
     @State private var error: String?
     @State private var advanced = false
+    /// Mobile apps: a RevenueCat project instead of a Stripe account.
+    @State private var revenueCat = false
+    @State private var rcProject: RevenueCatClient.ProjectInfo?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Add a Stripe account").font(.title3.weight(.semibold))
+            HStack {
+                Text(revenueCat ? "Add RevenueCat apps" : "Add a Stripe account").font(.title3.weight(.semibold))
+                Spacer()
+                Picker("", selection: $revenueCat) {
+                    Text(verbatim: "Stripe").tag(false)
+                    Text(verbatim: "RevenueCat").tag(true)
+                }
+                .pickerStyle(.segmented).labelsHidden().fixedSize()
+                .onChange(of: revenueCat) { _ in key = ""; found = nil; rcProject = nil; error = nil }
+            }
             VStack(alignment: .leading, spacing: 6) {
                 Text("API key").font(.callout.weight(.medium))
-                SecureField("", text: $key, prompt: Text("rk_live_… or sk_live_…"))
+                SecureField("", text: $key, prompt: Text(revenueCat ? "sk_…" : "rk_live_… or sk_live_…"))
                     .textFieldStyle(.roundedBorder)
-                    .onChange(of: key) { _ in found = nil; error = nil }
-                Text("In Stripe: Developers › API keys › Create restricted key, with Read on Events, Charges, Customers, Subscriptions and Payouts.")
+                    .onChange(of: key) { _ in found = nil; rcProject = nil; error = nil }
+                Text(revenueCat ? "In RevenueCat: Project settings › API keys › New secret API key, version V2, with Read on Charts & metrics and on Project configuration."
+                                : "In Stripe: Developers › API keys › Create restricted key, with Read on Events, Charges, Customers, Subscriptions and Payouts.")
                     .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
-            DisclosureGroup("Advanced", isExpanded: $advanced) {
-                TextField("", text: $connected, prompt: Text("acct_… (connected account, for a Connect platform)"))
-                    .textFieldStyle(.roundedBorder).padding(.top, 4)
+            if !revenueCat {
+                DisclosureGroup("Advanced", isExpanded: $advanced) {
+                    TextField("", text: $connected, prompt: Text("acct_… (connected account, for a Connect platform)"))
+                        .textFieldStyle(.roundedBorder).padding(.top, 4)
+                }
+                .font(.callout)
             }
-            .font(.callout)
 
+            if let rcProject {
+                HStack(spacing: 10) {
+                    Text("📱").font(.system(size: 26)).frame(width: 36, height: 36)
+                    VStack(alignment: .leading, spacing: 2) {
+                        TextField("", text: $name, prompt: Text(rcProject.name)).textFieldStyle(.roundedBorder)
+                        Text(verbatim: "RevenueCat · \(rcProject.id)").font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+                .padding(10)
+                .background(.green.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
+            }
             if let found {
                 HStack(spacing: 10) {
                     Group {
@@ -692,7 +725,7 @@ struct AddAccountSheet: View {
                     .font(.caption).foregroundStyle(.secondary)
                 Spacer()
                 Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
-                if found == nil {
+                if found == nil && rcProject == nil {
                     Button(busy ? "Checking…" : "Check") { check() }
                         .keyboardShortcut(.defaultAction)
                         .disabled(busy || key.trimmingCharacters(in: .whitespaces).isEmpty)
@@ -708,6 +741,15 @@ struct AddAccountSheet: View {
     private func check() {
         busy = true
         Task {
+            if revenueCat {
+                do {
+                    rcProject = try await RevenueCatClient(key: key.trimmingCharacters(in: .whitespacesAndNewlines)).projects().first
+                    if rcProject == nil { error = String(localized: "This key reads no project.") }
+                    name = ""
+                } catch { self.error = String(localized: "RevenueCat refused this key:") + " " + error.localizedDescription }
+                busy = false
+                return
+            }
             do {
                 let (info, img) = try await model.inspect(key: key, connected: connected.trimmingCharacters(in: .whitespaces))
                 found = info; logo = img; name = ""
@@ -720,7 +762,8 @@ struct AddAccountSheet: View {
         busy = true
         Task {
             do {
-                try await model.addAccount(name: name, emoji: "", key: key, connected: connected.trimmingCharacters(in: .whitespaces))
+                if revenueCat { try await model.addRevenueCat(key: key, name: name) }
+                else { try await model.addAccount(name: name, emoji: "", key: key, connected: connected.trimmingCharacters(in: .whitespaces)) }
                 dismiss()
             } catch { self.error = error.localizedDescription }
             busy = false

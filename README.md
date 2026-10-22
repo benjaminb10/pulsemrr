@@ -22,6 +22,7 @@ Free, open source, no server. Your keys never leave your Mac.</p>
 
 - **A notification for what matters**, each one switchable: new sale, new subscriber, new customer, trial started, trial converted, cancellation scheduled, subscription ended, failed payment, refund, dispute, payout. Money coming in plays a cash register sound. Notifications can stay on screen until you dismiss them.
 - **Every Stripe account in one place.** Add as many as you run, each with its project's logo (taken from your Stripe branding or your website) or an emoji. Drag to reorder.
+- **Your mobile apps too, through RevenueCat.** Add a RevenueCat project with a secret API v2 key (read only on Charts & metrics and Project configuration): its revenue, new customers, MRR, subscribers and trials sit next to your Stripe projects, with the app's icon, and a rise in the day's revenue comes as a sale notification (RevenueCat is read every 2 minutes).
 - **Today at a glance:** the day's takings, yesterday, today's new customers and your total MRR, with today's amount and new customers right in the menu bar if you want them.
 - **Failed payments on one line.** Expand it to see who failed and open each one in Stripe.
 - **One row per project:** today's takings, new customers, a 30 day sparkline and its MRR. Hover for the details.
@@ -38,6 +39,7 @@ Click the **Dashboard** card under today's figure (or press ⌘D), or a project,
 - **Real MRR and trials:** the last 30 days day by day, then where your running trials lead, once if every trial pays and once at your real conversion rate, with each day's new trials, new payers and cancelled trials underneath.
 - **MRR over 3, 6 or 12 months**, all projects stacked or one at a time. Hover the chart to read any week.
 - **Where the MRR comes from and goes**, month by month: new customers, upgrades, returning customers, downgrades and cancellations, with the net change.
+- **Today, project by project:** the day's takings, yesterday's and new customers for each project, with the total. The same breakdown unfolds in the menu with a click on today's figure.
 - **The numbers that matter:** net new MRR, paying customers, revenue per customer, customer and revenue churn, lifetime value, trial conversion.
 - **Churn over time:** the 30-day rolling churn of paying customers over the last 90 days, with the customers lost each day.
 - **Revenue collected** by day, week or month, and this month against the same days of last month.

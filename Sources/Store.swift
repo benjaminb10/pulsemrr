@@ -16,8 +16,11 @@ struct Account: Identifiable, Codable, Hashable {
     /// Show the project's logo (from Stripe branding, or the website's favicon) instead of the emoji.
     var useLogo: Bool = true
     var website: String = ""
+    /// A RevenueCat project (mobile apps) instead of a Stripe account: its id, read with a secret API v2 key.
+    var revenueCatProject: String = ""
+    var isRevenueCat: Bool { !revenueCatProject.isEmpty }
 
-    enum CodingKeys: String, CodingKey { case id, name, emoji, connectedAccount, stripeID, currency, live, enabled, useLogo, website }
+    enum CodingKeys: String, CodingKey { case id, name, emoji, connectedAccount, stripeID, currency, live, enabled, useLogo, website, revenueCatProject }
     init(name: String, emoji: String = "💳", connectedAccount: String = "", stripeID: String = "", currency: String = "eur", live: Bool = true) {
         self.name = name; self.emoji = emoji; self.connectedAccount = connectedAccount
         self.stripeID = stripeID; self.currency = currency; self.live = live
@@ -34,6 +37,7 @@ struct Account: Identifiable, Codable, Hashable {
         enabled = try c.decodeIfPresent(Bool.self, forKey: .enabled) ?? true
         useLogo = try c.decodeIfPresent(Bool.self, forKey: .useLogo) ?? true
         website = try c.decodeIfPresent(String.self, forKey: .website) ?? ""
+        revenueCatProject = try c.decodeIfPresent(String.self, forKey: .revenueCatProject) ?? ""
     }
 
     var logoURL: URL { Disk.folder.appendingPathComponent("logos/\(id.uuidString).png") }

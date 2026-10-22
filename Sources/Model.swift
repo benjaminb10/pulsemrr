@@ -201,7 +201,7 @@ final class Model: ObservableObject {
     }
 
     func client(_ a: Account) -> StripeClient? {
-        guard let key = Keychain.load(a.id) else { return nil }
+        guard !a.isRevenueCat, let key = Keychain.load(a.id) else { return nil }
         return StripeClient(key: key, connectedAccount: a.connectedAccount.isEmpty ? nil : a.connectedAccount)
     }
 
@@ -213,7 +213,7 @@ final class Model: ObservableObject {
         defer { polling = false }
         var anyMoney = false
         for a in accounts where a.enabled {
-            if await poll(a) { anyMoney = true }
+            if a.isRevenueCat { await pollRevenueCat(a) } else if await poll(a) { anyMoney = true }
         }
         lastPoll = Date()
         if anyMoney { await refreshStats() }
@@ -298,6 +298,7 @@ final class Model: ObservableObject {
         guard persist else { return }
         await refreshRates()
         for a in accounts where a.enabled {
+            if a.isRevenueCat { await refreshRevenueCat(a); continue }
             guard let c = client(a) else { continue }
             do {
                 daily[a.id] = try await c.daily(days: 30)
@@ -314,6 +315,72 @@ final class Model: ObservableObject {
             }
         }
         if dashboardOpen { rebuildDashboard() }
+    }
+
+    // MARK: RevenueCat
+
+    private var revenueCatRead: [UUID: Date] = [:]
+
+    /// RevenueCat has no events: every two minutes, today's revenue is read again, and a rise is notified as a sale.
+    private func pollRevenueCat(_ a: Account) async {
+        if let t = revenueCatRead[a.id], Date().timeIntervalSince(t) < 120 { return }
+        let before = takings(a, 0)[currency] ?? 0
+        let known = daily[a.id] != nil
+        await refreshRevenueCat(a)
+        let after = takings(a, 0)[currency] ?? 0
+        guard known, after > before else { return }
+        let act = Activity(id: "rc-\(UUID().uuidString)", kind: .sale, accountID: a.id, created: Date(), amount: after - before, currency: currency,
+                           who: nil, customerID: nil, objectID: "rc:" + a.revenueCatProject, live: true)
+        remember(act)
+        if prefs.kinds.contains(.sale) { notify(act, a) }
+    }
+
+    /// Revenue and new customers for the last 30 days, then the MRR, subscribers and trials, in the display currency.
+    private func refreshRevenueCat(_ a: Account) async {
+        guard let key = Keychain.load(a.id) else { errors[a.id] = String(localized: "Key not found in the Keychain"); return }
+        let c = RevenueCatClient(key: key), p = a.revenueCatProject, cur = currency
+        do {
+            let rev = try await c.daily("revenue", p, days: 30, currency: cur)
+            daily[a.id] = rev.mapValues { [cur: Int(($0 * 100).rounded())] }
+            signups[a.id] = (try? await c.daily("customers_new", p, days: 2, currency: cur))?.mapValues { Int($0.rounded()) } ?? [:]
+            let o = try await c.overview(p, currency: cur)
+            var m = MrrSnapshot()
+            m.real = [cur: Int(((o["mrr"] ?? 0) * 100).rounded())]
+            m.activeCount = Int(o["active_subscriptions"] ?? 0)
+            m.trialCount = Int(o["active_trials"] ?? 0)
+            mrr[a.id] = m.real
+            mrrDetail[a.id] = m
+            subscribers[a.id] = m.activeCount
+            revenueCatRead[a.id] = Date()
+            errors[a.id] = nil
+        } catch {
+            errors[a.id] = error.localizedDescription
+        }
+    }
+
+    /// Checks a RevenueCat secret key, then saves its project (key in the Keychain).
+    @discardableResult
+    func addRevenueCat(key: String, name: String) async throws -> Account {
+        let cleanKey = key.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let p = try await RevenueCatClient(key: cleanKey).projects().first else {
+            throw RevenueCatClient.RCError(message: String(localized: "This key reads no project."))
+        }
+        var a = Account(name: name.isEmpty ? p.name : name, emoji: "📱", currency: currency)
+        a.revenueCatProject = p.id
+        // The app's icon, from RevenueCat; the 📱 emoji without one
+        let icon: NSImage? = await p.icon.asyncMap { url in (try? await URLSession.shared.data(from: url)).flatMap { NSImage(data: $0.0) } } ?? nil
+        a.useLogo = icon != nil
+        if let existing = accounts.firstIndex(where: { $0.revenueCatProject == p.id }) {
+            a.id = accounts[existing].id
+            a.emoji = accounts[existing].emoji
+            accounts[existing] = a
+        } else {
+            accounts.append(a)
+        }
+        Keychain.save(cleanKey, for: a.id)
+        saveLogo(icon, for: a)
+        Task { await refreshRevenueCat(a) }
+        return a
     }
 
     // MARK: dashboard

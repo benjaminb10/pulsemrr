@@ -306,6 +306,7 @@ struct Activity: Identifiable, Codable, Hashable {
     let live: Bool
 
     var dashboardURL: URL {
+        if objectID.hasPrefix("rc:") { return URL(string: "https://app.revenuecat.com/projects/\(objectID.dropFirst(3))/overview")! }
         let base = live ? "https://dashboard.stripe.com/" : "https://dashboard.stripe.com/test/"
         let path: String
         switch kind {

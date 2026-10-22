@@ -273,3 +273,7 @@
 "Hide the detail by project" = "Masquer le détail par projet";
 "Show the detail by project" = "Voir le détail par projet";
 "Takings and new customers, by project. Click one to open it." = "Encaissements et nouveaux clients, par projet. Clique sur un projet pour l'ouvrir.";
+"Add RevenueCat apps" = "Ajouter des apps RevenueCat";
+"In RevenueCat: Project settings › API keys › New secret API key, version V2, with Read on Charts & metrics and on Project configuration." = "Dans RevenueCat : Project settings › API keys › New secret API key, version V2, avec la lecture sur Charts & metrics et Project configuration.";
+"This key reads no project." = "Cette clé ne donne accès à aucun projet.";
+"RevenueCat refused this key:" = "RevenueCat a refusé cette clé :";

@@ -903,8 +903,8 @@ struct TodayCard: View {
     }
 
     private func figure(_ v: Int, plus: Bool = false) -> some View {
-        Text(v > 0 ? (plus ? "+" : "") + Fmt.money(v, model, compact: false) : "–")
-            .foregroundStyle(v > 0 ? (plus ? Palette.money : Color.primary) : Color.secondary.opacity(0.5))
+        Text(v > 0 ? (plus ? "+" : "") + Fmt.money(v, model, compact: false) : v < 0 ? "−" + Fmt.money(-v, model, compact: false) : "–")
+            .foregroundStyle(v > 0 ? (plus ? Palette.money : Color.primary) : v < 0 ? Palette.loss : Color.secondary.opacity(0.5))
     }
 }
 

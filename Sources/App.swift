@@ -147,6 +147,26 @@ struct PulseMRRApp: App {
             while sem.wait(timeout: .now()) == .timedOut { RunLoop.main.run(until: Date().addingTimeInterval(0.05)) }
             exit(0)
         }
+        // `PulseMRR --add-revenuecat` with one RevenueCat secret key per line on stdin: adds each project.
+        if args.contains("--add-revenuecat") {
+            var keys: [String] = []
+            while let line = readLine(strippingNewline: true) { if !line.isEmpty { keys.append(line) } }
+            let sem = DispatchSemaphore(value: 0)
+            Task { @MainActor in
+                let m = Model()
+                for key in keys {
+                    do {
+                        let a = try await m.addRevenueCat(key: key, name: "")
+                        print("added \(a.name) \(a.revenueCatProject)")
+                    } catch {
+                        print("error: \(error.localizedDescription)")
+                    }
+                }
+                sem.signal()
+            }
+            while sem.wait(timeout: .now()) == .timedOut { RunLoop.main.run(until: Date().addingTimeInterval(0.05)) }
+            exit(0)
+        }
         if let i = args.firstIndex(of: "--add-account") {
             let name = args.count > i + 1 ? args[i + 1] : ""
             let emoji = args.count > i + 2 ? args[i + 2] : ""
