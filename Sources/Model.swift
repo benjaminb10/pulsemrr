@@ -414,6 +414,8 @@ final class Model: ObservableObject {
             subscribers[a.id] = m.activeCount
             revenueCatRead[a.id] = Date()
             errors[a.id] = nil
+            // The year of MRR for the header's curve (read again every 10 minutes at most)
+            await loadRevenueCatHistory(a, force: false)
         } catch {
             errors[a.id] = error.localizedDescription
         }
@@ -511,10 +513,12 @@ final class Model: ObservableObject {
     func mrrTrend() -> [Int] {
         let now = Date()
         let all = active.flatMap { facts[$0.id] ?? [] }
-        guard !all.isEmpty else { return [] }
+        // RevenueCat apps add their own MRR curve
+        let apps = active.compactMap { rcMrr[$0.id] }.filter { !$0.isEmpty }.map { Analytics.Outside(mrr: $0, subscribers: 0) }
+        guard !all.isEmpty || !apps.isEmpty else { return [] }
         return stride(from: 26, through: 0, by: -1).map { k in
             let t = now.addingTimeInterval(-Double(k) * 14 * 86400)
-            return all.filter { $0.pays(at: t) }.reduce(0) { $0 + convert($1.monthly, $1.currency) }
+            return all.filter { $0.pays(at: t) }.reduce(0) { $0 + convert($1.monthly, $1.currency) } + apps.reduce(0) { $0 + $1.at(t) }
         }
     }
 

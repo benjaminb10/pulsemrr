@@ -16,6 +16,7 @@ struct MenuPanel: View {
     @Environment(\.isSnapshot) private var isSnapshot
     @State private var sectionsHeight: CGFloat = 600
     @AppStorage("quietOpen") private var quietOpen = false
+    @AppStorage("panelTab") private var panelTab = "projects"
 
     var body: some View {
         // The dashboard's look: white cards on a light grey background
@@ -53,12 +54,34 @@ struct MenuPanel: View {
                 header.padding(16).panelCard()
                 if !model.todos.isEmpty { TodoLine(model: model) }
                 VStack(spacing: 0) {
-                    HStack {
-                        Text("Projects").font(.subheadline.weight(.semibold))
+                    // Projects and the latest activity share one card, a click apart: the panel stays short
+                    HStack(spacing: 14) {
+                        tab("Projects", "projects")
+                        tab("Latest", "activity")
                         Spacer()
-                        Text("Today").font(.caption).foregroundStyle(.tertiary)
+                        if panelTab == "projects" { Text("Today").font(.caption).foregroundStyle(.tertiary) }
                     }
                     .padding(.horizontal, 14).padding(.top, 12).padding(.bottom, 4)
+                    if panelTab == "activity" {
+                        ActivityList(model: model, count: 10).padding(.top, 4).padding(.bottom, 2)
+                    } else {
+                        projectRows
+                    }
+                }
+                .padding(.bottom, 4)
+                .panelCard()
+            }
+        }
+    }
+
+    private func tab(_ title: LocalizedStringKey, _ id: String) -> some View {
+        Text(title).font(.subheadline.weight(.semibold))
+            .foregroundStyle(panelTab == id ? Color.primary : Color.secondary.opacity(0.6))
+            .contentShape(Rectangle())
+            .onTapGesture { withAnimation(.easeOut(duration: 0.12)) { panelTab = id } }
+    }
+
+    @ViewBuilder private var projectRows: some View {
                     let quiet = model.byTakings.filter(model.isQuiet)
                     let shown = model.byTakings.filter { !model.isQuiet($0) } + (quietOpen ? quiet : [])
                     ForEach(Array(shown.enumerated()), id: \.element.id) { i, a in
@@ -73,12 +96,6 @@ struct MenuPanel: View {
                         QuietToggle(model: model, quiet: quiet, open: $quietOpen)
                             .font(.caption).padding(.horizontal, 14).padding(.vertical, 9)
                     }
-                }
-                .padding(.bottom, 4)
-                .panelCard()
-                ActivityList(model: model).padding(.top, 12).padding(.bottom, 6).panelCard()
-            }
-        }
     }
 
     private var empty: some View {
@@ -97,7 +114,9 @@ struct MenuPanel: View {
                 HStack {
                     Text("Today").font(.callout.weight(.medium)).foregroundStyle(.secondary)
                     Spacer()
-                    Delta(today: model.convert(model.takings(0)), yesterday: model.convert(model.takings(1)))
+                    // Nothing yet today (just after midnight): no "−100 %"
+                    let today = model.convert(model.takings(0))
+                    if today > 0 { Delta(today: today, yesterday: model.convert(model.takings(1))) }
                 }
                 Amount(model: model, sums: model.takings(0), font: .system(size: 32, weight: .semibold, design: .rounded))
             }
@@ -510,10 +529,10 @@ struct QuietToggle: View {
 
 struct ActivityList: View {
     @ObservedObject var model: Model
+    var count = 5
     var body: some View {
-        let items = Array(model.feed.prefix(5))
+        let items = Array(model.feed.prefix(count))
         VStack(alignment: .leading, spacing: 0) {
-            Text("Latest").font(.subheadline.weight(.semibold)).padding(.horizontal, 14).padding(.bottom, 6)
             if items.isEmpty {
                 Text("Nothing in the last 7 days.").font(.callout).foregroundStyle(.tertiary).padding(.horizontal, 14).padding(.vertical, 6)
             }
