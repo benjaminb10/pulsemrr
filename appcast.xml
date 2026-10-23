@@ -4,10 +4,10 @@
     <title>PulseMRR</title>
     <link>https://github.com/benjaminb10/pulsemrr</link>
     <item>
-      <title>PulseMRR 0.9.12</title>
-      <pubDate>Thu, 22 Oct 2026 21:47:28 +0000</pubDate>
-      <sparkle:version>44</sparkle:version>
-      <sparkle:shortVersionString>0.9.12</sparkle:shortVersionString>
+      <title>PulseMRR 0.9.13</title>
+      <pubDate>Fri, 23 Oct 2026 01:09:51 +0000</pubDate>
+      <sparkle:version>46</sparkle:version>
+      <sparkle:shortVersionString>0.9.13</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
       <description><![CDATA[
 <style>
@@ -19,14 +19,13 @@
   a { color: #594FE0; }
 </style>
 <ul dir="auto">
-<li><strong>Nouveau panneau</strong> : un bouton Tableau de bord à côté du nom (⌘D) remplace la grande carte du milieu. La courbe du MRR sur 12 mois passe à côté du MRR, et la comparaison avec hier à côté du total du jour.</li>
-<li><strong>Chaque projet montre l'encaissé du jour</strong> à droite, avec son MRR en dessous, et hier et les nouveaux clients sous son nom. Le tableau du jour à part disparaît : tout est sur une seule liste.</li>
-<li><strong>Tout est classé par encaissé</strong> (panneau et Tableau de bord), et les projets sans activité depuis 30 jours tiennent sur une ligne qu'on déplie ; un projet qui vend en sort tout seul.</li>
-<li><strong>RevenueCat dans le Tableau de bord</strong> : le revenu et le MRR des apps mobiles comptent dans les courbes, le MRR total et le tableau Projets.</li>
-<li><strong>New panel</strong>: a Dashboard button by the name (⌘D), the MRR's 12 month curve next to it, and each project's takings today on its row with the MRR under them. Sorted by takings everywhere, quiet projects folded, RevenueCat apps in the dashboard's charts.</li>
+<li><strong>Dernières activités</strong> : de retour, dans la même carte que les projets. Un clic sur « Dernières activités » à côté de « Projets » affiche les 10 dernières, et PulseMRR retient l'onglet choisi.</li>
+<li><strong>Courbe du MRR de l'en-tête</strong> : elle compte aussi les apps RevenueCat.</li>
+<li>Juste après minuit, plus de « −100 % vs hier » : la comparaison apparaît dès le premier encaissement du jour.</li>
+<li><strong>Latest activity</strong> is back, as a tab next to Projects in the same card. The header's MRR curve now includes RevenueCat apps, and there is no more "−100 % vs yesterday" just after midnight.</li>
 </ul>
       ]]></description>
-      <enclosure url="https://github.com/benjaminb10/pulsemrr/releases/download/v0.9.12/PulseMRR.dmg" type="application/octet-stream" sparkle:edSignature="SGKuk17IikpMD0oFKlwcqtixhSrnjWqda5ZsWUTb8AVpaxJ+1N39snrHKXxun5GUf70rnQUYNZyfpbgrsjGcAQ==" length="3910487" />
+      <enclosure url="https://github.com/benjaminb10/pulsemrr/releases/download/v0.9.13/PulseMRR.dmg" type="application/octet-stream" sparkle:edSignature="HvwAKOWIXBXZiZJLermZRzt+K+l+6inW+nzxllYbLJ6yafhbSMph270lHDACaoJYrOyJmbN3IT4VB8SPayedAQ==" length="3915880" />
     </item>
   </channel>
 </rss>
