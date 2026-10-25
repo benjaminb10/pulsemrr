@@ -4,10 +4,10 @@
     <title>PulseMRR</title>
     <link>https://github.com/benjaminb10/pulsemrr</link>
     <item>
-      <title>PulseMRR 0.9.14</title>
-      <pubDate>Sun, 25 Oct 2026 02:44:56 +0000</pubDate>
-      <sparkle:version>48</sparkle:version>
-      <sparkle:shortVersionString>0.9.14</sparkle:shortVersionString>
+      <title>PulseMRR 0.9.15</title>
+      <pubDate>Sun, 25 Oct 2026 02:51:22 +0000</pubDate>
+      <sparkle:version>50</sparkle:version>
+      <sparkle:shortVersionString>0.9.15</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
       <description><![CDATA[
 <style>
@@ -19,10 +19,11 @@
   a { color: #594FE0; }
 </style>
 <ul dir="auto">
-<li><strong>1 month</strong> in the dashboard's period picker: the MRR curve day by day over the last 30 days, its movements week by week, and the revenue collected day by day.</li>
+<li>The <strong>Dashboard</strong> button in the menu bar panel stands out.</li>
+<li>Opening the dashboard (or a project) from the panel closes the panel.</li>
 </ul>
       ]]></description>
-      <enclosure url="https://github.com/benjaminb10/pulsemrr/releases/download/v0.9.14/PulseMRR.dmg" type="application/octet-stream" sparkle:edSignature="yhS3kPdZe+5z47TE8uMhvocNwxUFy4xqqr01jmL00WIIaMNbw1+rL05b6NG1pppbeUJz3iBzH/32hg09R+WYBw==" length="3929175" />
+      <enclosure url="https://github.com/benjaminb10/pulsemrr/releases/download/v0.9.15/PulseMRR.dmg" type="application/octet-stream" sparkle:edSignature="Q7qPKxKVCFczsy4iqdMYJy/B3NaK7TafOhmQMoBWaZX3wKkEesc3wgEpRIEOjLIMfIEKt/yRWJ3xFobCUYaCCA==" length="3929957" />
     </item>
   </channel>
 </rss>
