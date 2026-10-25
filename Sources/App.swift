@@ -108,6 +108,24 @@ struct PulseMRRApp: App {
             while sem.wait(timeout: .now()) == .timedOut { RunLoop.main.run(until: Date().addingTimeInterval(0.05)) }
             exit(0)
         }
+        // `PulseMRR --metrics-dump`: the headline figures of each live project as JSON lines (for checks after a change of formula).
+        if args.contains("--metrics-dump") {
+            let sem = DispatchSemaphore(value: 0)
+            Task { @MainActor in
+                let m = Model()
+                await m.refreshStats(); await m.loadDashboard()
+                m.persist = false
+                for a in m.active where !a.isRevenueCat {
+                    m.dashboardScope = a.id
+                    m.rebuildDashboard()
+                    let row: [String: Any] = ["project": a.name, "currency": m.currency] .merging(m.metricsDump(a)) { $1 }
+                    if let data = try? JSONSerialization.data(withJSONObject: row, options: [.sortedKeys]) { print(String(decoding: data, as: UTF8.self)) }
+                }
+                sem.signal()
+            }
+            while sem.wait(timeout: .now()) == .timedOut { RunLoop.main.run(until: Date().addingTimeInterval(0.05)) }
+            exit(0)
+        }
         // `PulseMRR --snapshot out.png`: draws the menu panel to an image, with live data (for docs and checks).
         if let i = args.firstIndex(of: "--snapshot"), args.count > i + 1 {
             let out = URL(fileURLWithPath: args[i + 1])

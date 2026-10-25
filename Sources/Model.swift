@@ -797,3 +797,16 @@ final class Model: ObservableObject {
         }
     }
 }
+
+extension Model {
+    /// The headline figures of one project, minor units of the display currency (`--metrics-dump`).
+    func metricsDump(_ a: Account) -> [String: Any] {
+        let s = mrrDetail[a.id] ?? MrrSnapshot(), p = projection, d = dashboard
+        func opt(_ v: Double?) -> Any { v.map { ($0 * 1000).rounded() / 1000 } ?? NSNull() }
+        return ["real": p.real, "atRisk": p.atRisk, "atRiskCount": p.atRiskCount, "trials": p.trials, "trialCount": p.trialCount,
+                "trialsCancelling": p.trialsCancelling, "projected": p.projected, "rate": opt(p.rate),
+                "ended": p.ended, "endedPaying": p.endedPaying, "endedFailed": p.endedFailed, "endedCancelled": p.endedCancelled,
+                "leaving": convert(s.leaving), "leavingCount": s.leavingCount, "kpiMrr": d.mrr, "customers": d.customers,
+                "churn30": opt(d.customerChurn), "churnTodayCard": opt(d.churn.last?.rate), "trialConversion90": opt(d.trialConversion)]
+    }
+}
