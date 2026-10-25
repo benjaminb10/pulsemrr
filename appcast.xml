@@ -4,10 +4,10 @@
     <title>PulseMRR</title>
     <link>https://github.com/benjaminb10/pulsemrr</link>
     <item>
-      <title>PulseMRR 0.9.13</title>
-      <pubDate>Fri, 23 Oct 2026 01:09:51 +0000</pubDate>
-      <sparkle:version>46</sparkle:version>
-      <sparkle:shortVersionString>0.9.13</sparkle:shortVersionString>
+      <title>PulseMRR 0.9.14</title>
+      <pubDate>Sun, 25 Oct 2026 02:44:56 +0000</pubDate>
+      <sparkle:version>48</sparkle:version>
+      <sparkle:shortVersionString>0.9.14</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
       <description><![CDATA[
 <style>
@@ -19,13 +19,10 @@
   a { color: #594FE0; }
 </style>
 <ul dir="auto">
-<li><strong>Dernières activités</strong> : de retour, dans la même carte que les projets. Un clic sur « Dernières activités » à côté de « Projets » affiche les 10 dernières, et PulseMRR retient l'onglet choisi.</li>
-<li><strong>Courbe du MRR de l'en-tête</strong> : elle compte aussi les apps RevenueCat.</li>
-<li>Juste après minuit, plus de « −100 % vs hier » : la comparaison apparaît dès le premier encaissement du jour.</li>
-<li><strong>Latest activity</strong> is back, as a tab next to Projects in the same card. The header's MRR curve now includes RevenueCat apps, and there is no more "−100 % vs yesterday" just after midnight.</li>
+<li><strong>1 month</strong> in the dashboard's period picker: the MRR curve day by day over the last 30 days, its movements week by week, and the revenue collected day by day.</li>
 </ul>
       ]]></description>
-      <enclosure url="https://github.com/benjaminb10/pulsemrr/releases/download/v0.9.13/PulseMRR.dmg" type="application/octet-stream" sparkle:edSignature="HvwAKOWIXBXZiZJLermZRzt+K+l+6inW+nzxllYbLJ6yafhbSMph270lHDACaoJYrOyJmbN3IT4VB8SPayedAQ==" length="3915880" />
+      <enclosure url="https://github.com/benjaminb10/pulsemrr/releases/download/v0.9.14/PulseMRR.dmg" type="application/octet-stream" sparkle:edSignature="yhS3kPdZe+5z47TE8uMhvocNwxUFy4xqqr01jmL00WIIaMNbw1+rL05b6NG1pppbeUJz3iBzH/32hg09R+WYBw==" length="3929175" />
     </item>
   </channel>
 </rss>
