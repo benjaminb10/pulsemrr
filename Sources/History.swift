@@ -179,10 +179,11 @@ enum Analytics {
         let day: TimeInterval = 86400
         var d = DashboardData()
 
-        // The MRR curve: one point a week, per project
-        let weeks = Int((Double(months) * 30.44 / 7).rounded())
-        for w in stride(from: weeks, through: 0, by: -1) {
-            let t = now.addingTimeInterval(-Double(w) * 7 * day)
+        // The MRR curve: one point a week, per project (a day over a single month)
+        let step: Double = months <= 1 ? 1 : 7
+        let points = Int((Double(months) * 30.44 / step).rounded())
+        for w in stride(from: points, through: 0, by: -1) {
+            let t = now.addingTimeInterval(-Double(w) * step * day)
             var per: [UUID: Int] = [:]
             for it in list where it.fact.pays(at: t) { per[it.account, default: 0] += it.monthly }
             for (id, o) in outside { per[id] = o.at(t) }
@@ -190,11 +191,23 @@ enum Analytics {
         }
 
         // Where the MRR came from and went, calendar month by calendar month (this one so far)
+        // (over a single month, week by week: one bar would say little)
         let thisMonth = cal.date(from: cal.dateComponents([.year, .month], from: now))!
-        for m in stride(from: months - 1, through: 0, by: -1) {
+        var calendarMonths: [DashboardData.Month] = []
+        for m in stride(from: max(months, 4) - 1, through: 0, by: -1) {
             let a = cal.date(byAdding: .month, value: -m, to: thisMonth)!
             let b = m == 0 ? now : cal.date(byAdding: .month, value: 1, to: a)!
-            d.months.append(.init(month: a, move: movement(list, a, b)))
+            calendarMonths.append(.init(month: a, move: movement(list, a, b)))
+        }
+        if months <= 1 {
+            let thisWeek = cal.dateInterval(of: .weekOfYear, for: now)!.start
+            for w in stride(from: 4, through: 0, by: -1) {
+                let a = cal.date(byAdding: .weekOfYear, value: -w, to: thisWeek)!
+                let b = w == 0 ? now : cal.date(byAdding: .weekOfYear, value: 1, to: a)!
+                d.months.append(.init(month: a, move: movement(list, a, b)))
+            }
+        } else {
+            d.months = Array(calendarMonths.suffix(months))
         }
         d.last30 = movement(list, now.addingTimeInterval(-30 * day), now)
         d.last90 = movement(list, now.addingTimeInterval(-90 * day), now)
@@ -203,7 +216,7 @@ enum Analytics {
             d.last30.startMrr += o.at(now.addingTimeInterval(-30 * day)); d.last30.endMrr += o.at(now)
             d.last30.endCustomers += o.subscribers
         }
-        let full = d.months.dropLast().suffix(3)
+        let full = calendarMonths.dropLast().suffix(3)
         if !full.isEmpty { d.pace = full.reduce(0) { $0 + $1.move.net } / full.count }
 
         // Trials that ended in the last 90 days, and how many of them paid

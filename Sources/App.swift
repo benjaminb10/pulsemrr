@@ -67,7 +67,7 @@ struct PulseMRRApp: App {
             }
             exit(0)
         }
-        // `PulseMRR --dashboard-snapshot out.png [dark] [demo] [project N]`: the dashboard window's content as an image,
+        // `PulseMRR --dashboard-snapshot out.png [dark] [demo] [project N] [months N]`: the dashboard window's content as an image,
         // with made-up projects (demo) or live data, for the README and for checks.
         if let i = args.firstIndex(of: "--dashboard-snapshot"), args.count > i + 1 {
             let out = URL(fileURLWithPath: args[i + 1])
@@ -86,6 +86,8 @@ struct PulseMRRApp: App {
                     let keep = Set(args[j + 1].split(separator: ",").compactMap { Int($0) }.filter { m.active.indices.contains($0) }.map { m.active[$0].id })
                     m.dashboardExcluded = Set(m.active.map(\.id)).subtracting(keep)
                 }
+                // `months 1`: the period picked in the toolbar
+                if let j = args.firstIndex(of: "months"), args.count > j + 1, let n = Int(args[j + 1]) { m.dashboardMonths = n }
                 m.rebuildDashboard()
                 NSApplication.shared.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
                 let view = DashboardContent(model: m)

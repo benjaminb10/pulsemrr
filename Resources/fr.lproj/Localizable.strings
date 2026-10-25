@@ -146,6 +146,8 @@
 "Projects" = "Projets";
 "Period" = "Période";
 "Period shown in the charts" = "Période affichée dans les graphiques";
+"1 month" = "1 mois";
+"Last 30 days" = "30 derniers jours";
 "3 months" = "3 mois";
 "6 months" = "6 mois";
 "12 months" = "12 mois";
@@ -181,6 +183,9 @@
 "MRR movements" = "Mouvements du MRR";
 "What moved the MRR, month by month" = "Ce qui a fait bouger le MRR, mois par mois";
 "this month" = "ce mois-ci";
+"this week" = "cette semaine";
+"What moved the MRR, week by week" = "Ce qui a fait bouger le MRR, semaine par semaine";
+"Week of %@" = "Semaine du %@";
 "New" = "Nouveaux";
 "Expansion" = "Hausses";
 "Reactivation" = "Retours";

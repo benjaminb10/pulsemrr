@@ -34,6 +34,7 @@ struct DashboardView: View {
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
                 Picker("Period", selection: $model.dashboardMonths) {
+                    Text("1 month").tag(1)
                     Text("3 months").tag(3)
                     Text("6 months").tag(6)
                     Text("12 months").tag(12)
@@ -291,8 +292,15 @@ private struct MoneyAxis: ViewModifier {
                 }
             }
             .chartXAxis {
-                AxisMarks(values: .stride(by: .month, count: months > 6 ? 2 : 1)) { _ in
-                    AxisValueLabel(format: .dateTime.month(.abbreviated), centered: false)
+                // Over one month the axis counts weeks, not months
+                if months <= 1 {
+                    AxisMarks(values: .stride(by: .weekOfYear)) { _ in
+                        AxisValueLabel(format: .dateTime.day().month(.abbreviated), centered: false)
+                    }
+                } else {
+                    AxisMarks(values: .stride(by: .month, count: months > 6 ? 2 : 1)) { _ in
+                        AxisValueLabel(format: .dateTime.month(.abbreviated), centered: false)
+                    }
                 }
             }
     }
@@ -427,7 +435,8 @@ struct MrrChartCard: View {
     }
 
     private func subtitle(first: Int, last: Int) -> String {
-        let period = String(format: String(localized: "Last %lld months"), model.dashboardMonths)
+        let period = model.dashboardMonths == 1 ? String(localized: "Last 30 days")
+            : String(format: String(localized: "Last %lld months"), model.dashboardMonths)
         guard first > 0 else { return period }
         return period + " · " + Fmt.signedPercent(Double(last - first) / Double(first))
     }
@@ -455,11 +464,14 @@ struct MovementsCard: View {
             (String(localized: "Contraction"), Palette.warn), (String(localized: "Churn"), Palette.loss),
         ]
         let current = months.last?.move ?? Movement()
-        Card(title: String(localized: "MRR movements"), subtitle: String(localized: "What moved the MRR, month by month")) {
+        let weekly = model.dashboardMonths <= 1
+        let unit: Calendar.Component = weekly ? .weekOfYear : .month
+        Card(title: String(localized: "MRR movements"),
+             subtitle: weekly ? String(localized: "What moved the MRR, week by week") : String(localized: "What moved the MRR, month by month")) {
             VStack(alignment: .trailing, spacing: 2) {
                 Text(Fmt.signed(current.net, model)).font(.system(size: 20, weight: .semibold, design: .rounded)).monospacedDigit()
                     .foregroundStyle(current.net >= 0 ? Palette.money : Palette.loss)
-                Text("this month").font(.caption).foregroundStyle(.secondary)
+                Text(weekly ? "this week" : "this month").font(.caption).foregroundStyle(.secondary)
             }
         } content: {
             Chart {
@@ -467,13 +479,13 @@ struct MovementsCard: View {
                     let parts = [m.move.new, m.move.expansion, m.move.reactivation, -m.move.contraction, -m.move.churn]
                     ForEach(Array(parts.enumerated()), id: \.offset) { i, v in
                         if v != 0 {
-                            BarMark(x: .value("Month", m.month, unit: .month), y: .value("MRR", Double(v)), width: .ratio(0.62))
+                            BarMark(x: .value("Month", m.month, unit: unit), y: .value("MRR", Double(v)), width: .ratio(0.62))
                                 .foregroundStyle(by: .value("Kind", kinds[i].0))
                         }
                     }
                 }
                 ForEach(months) { m in
-                    LineMark(x: .value("Month", m.month, unit: .month), y: .value("Net", Double(m.move.net)))
+                    LineMark(x: .value("Month", m.month, unit: unit), y: .value("Net", Double(m.move.net)))
                         .foregroundStyle(Color.primary.opacity(0.7))
                         .lineStyle(StrokeStyle(lineWidth: 1.5))
                         .symbol(Circle().strokeBorder(lineWidth: 1.5))
@@ -482,10 +494,10 @@ struct MovementsCard: View {
                 RuleMark(y: .value("Zero", 0)).foregroundStyle(Palette.line)
                 if let h = hover, let m = months.last(where: { $0.month <= h }) {
                     let mid = months[months.count / 2].month
-                    RuleMark(x: .value("Month", m.month, unit: .month))
+                    RuleMark(x: .value("Month", m.month, unit: unit))
                         .foregroundStyle(Color.primary.opacity(0.07)).lineStyle(StrokeStyle(lineWidth: 26))
                         .annotation(position: m.month > mid ? .leading : .trailing, alignment: .top, spacing: 10) {
-                            ChartTip(title: Fmt.date(m.month, "MMMM yyyy"), rows: [
+                            ChartTip(title: weekly ? String(format: String(localized: "Week of %@"), Fmt.date(m.month, "d MMMM")) : Fmt.date(m.month, "MMMM yyyy"), rows: [
                                 (Palette.money, kinds[0].0, Fmt.signed(m.move.new, model)),
                                 (Palette.mint, kinds[1].0, Fmt.signed(m.move.expansion, model)),
                                 (kinds[2].1, kinds[2].0, Fmt.signed(m.move.reactivation, model)),
@@ -510,7 +522,9 @@ struct MovementsCard: View {
 
 struct RevenueCard: View {
     @ObservedObject var model: Model
-    @State private var unit: Calendar.Component = .month
+    @State private var picked: Calendar.Component = .month
+    /// Over a single month, months would be one bar: days instead
+    private var unit: Calendar.Component { model.dashboardMonths <= 1 && picked == .month ? .day : picked }
     @State private var hover: Date?
     @Environment(\.isSnapshot) private var isSnapshot
 
@@ -522,12 +536,13 @@ struct RevenueCard: View {
             if isSnapshot {
                 Text(label(unit)).font(.callout).foregroundStyle(.secondary)
             } else {
-                Picker("", selection: $unit) {
+                Picker("", selection: $picked) {
                     Text("Days").tag(Calendar.Component.day)
                     Text("Weeks").tag(Calendar.Component.weekOfYear)
                     Text("Months").tag(Calendar.Component.month)
                 }
                 .pickerStyle(.segmented).labelsHidden().fixedSize()
+                .onChange(of: model.dashboardMonths) { m in if m <= 1 && picked == .month { picked = .day } }
             }
         } content: {
             Chart {
