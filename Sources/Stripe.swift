@@ -391,7 +391,8 @@ enum Money {
     /// Locale for numbers and dates (the Mac's, or English for the README screenshots).
     static var locale = Locale.current
 
-    static func format(_ minor: Int, _ currency: String, compact: Bool = false) -> String {
+    /// `whole`: no cents under a thousand ("142 €"), for lists of figures to compare at a glance.
+    static func format(_ minor: Int, _ currency: String, compact: Bool = false, whole: Bool = false) -> String {
         let code = currency.uppercased()
         let zeroDecimal: Set = ["BIF", "CLP", "DJF", "GNF", "JPY", "KMF", "KRW", "MGA", "PYG", "RWF", "UGX", "VND", "VUV", "XAF", "XOF", "XPF"]
         let value = Double(minor) / (zeroDecimal.contains(code) ? 1 : 100)
@@ -411,7 +412,7 @@ enum Money {
             let symbolFirst = (f.string(from: 1) ?? "").hasPrefix(symbol)
             return symbolFirst ? symbol + s + "k" : s + "\u{202F}k" + symbol
         }
-        if compact { f.maximumFractionDigits = value.rounded() == value ? 0 : 2 }
+        if whole { f.maximumFractionDigits = 0 } else if compact { f.maximumFractionDigits = value.rounded() == value ? 0 : 2 }
         return f.string(from: NSNumber(value: value)) ?? "\(value) \(code)"
     }
 

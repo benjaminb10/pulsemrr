@@ -62,69 +62,77 @@ struct DashboardView: View {
     }
 }
 
-/// The projects with a tick each: all by default, any mix of them, or none.
+/// Where the dashboard looks: all projects, or one. Quiet projects fold away; right-click leaves one out of the totals.
 struct DashboardSidebar: View {
     @ObservedObject var model: Model
+    @AppStorage("sidebarQuietOpen") private var quietOpen = false
+
+    private enum Pick: Hashable { case all, project(UUID) }
 
     var body: some View {
-        let all = model.dashboardAll, none = model.dashboardNone
-        List {
-            Section("Overview") {
-                SidebarRow(checked: all, partly: !all && !none, onlyButton: false) {
-                    Image(systemName: "square.grid.2x2").frame(width: 18).foregroundStyle(Palette.brand)
-                } label: {
-                    Text("All projects")
-                } amount: {
-                    Text(Fmt.money(model.active.reduce(0) { $0 + model.mrrNow($1) }, model)).foregroundStyle(.secondary).monospacedDigit()
-                } toggle: {
-                    model.toggleAllInDashboard()
-                } only: {}
+        let sorted = model.byMrr
+        // Quiet: no MRR and nothing in the last 30 days (a project that starts earning comes back up by itself)
+        let quiet = sorted.filter { model.mrrNow($0) == 0 && model.isQuiet($0) && $0.id != model.dashboardFocus }
+        let shown = sorted.filter { !quiet.contains($0) }
+        let pick = Binding<Pick?>(
+            get: { model.dashboardFocus.map(Pick.project) ?? .all },
+            set: { p in
+                guard let p else { return }
+                if case .project(let id) = p { model.dashboardFocus = id } else { model.dashboardFocus = nil }
+            })
+        let counted = model.active.filter { !model.dashboardExcluded.contains($0.id) }
+        List(selection: pick) {
+            Section {
+                row(icon: Image(systemName: "square.grid.2x2").frame(width: 18).foregroundStyle(Palette.brand),
+                    name: String(localized: "All projects"),
+                    amount: counted.reduce(0) { $0 + model.mrrNow($1) }, dimmed: false)
+                    .tag(Pick.all)
             }
-            Section("Projects") {
-                ForEach(model.byTakings) { a in
-                    SidebarRow(checked: !model.dashboardExcluded.contains(a.id), partly: false, onlyButton: model.active.count > 1) {
-                        AccountIcon(model: model, account: a, size: 18)
+            Section {
+                ForEach(shown) { a in projectRow(a, canExclude: counted.count > 1) }
+                if !quiet.isEmpty {
+                    DisclosureGroup(isExpanded: $quietOpen) {
+                        ForEach(quiet) { a in projectRow(a, canExclude: counted.count > 1) }
                     } label: {
-                        Text(a.name).lineLimit(1)
-                    } amount: {
-                        Text(Fmt.money(model.mrrNow(a), model)).foregroundStyle(.secondary).monospacedDigit()
-                    } toggle: {
-                        model.toggleInDashboard(a.id)
-                    } only: {
-                        model.dashboardScope = a.id
+                        Text(String(format: String(localized: quiet.count > 1 ? "%lld quiet projects" : "%lld quiet project"), quiet.count))
+                            .foregroundStyle(.secondary)
                     }
+                }
+            } header: {
+                HStack {
+                    Text("Projects")
+                    Spacer()
+                    Text("MRR").padding(.trailing, 12)
                 }
             }
         }
         .listStyle(.sidebar)
     }
-}
 
-struct SidebarRow<Icon: View, Label: View, Amount: View>: View {
-    let checked: Bool
-    let partly: Bool
-    let onlyButton: Bool
-    @ViewBuilder var icon: Icon
-    @ViewBuilder var label: Label
-    @ViewBuilder var amount: Amount
-    let toggle: () -> Void
-    let only: () -> Void
-    @State private var hover = false
+    private func projectRow(_ a: Account, canExclude: Bool) -> some View {
+        let out = model.dashboardExcluded.contains(a.id)
+        return row(icon: AccountIcon(model: model, account: a, size: 18), name: a.name, amount: model.mrrNow(a), dimmed: out)
+            .help(out ? String(localized: "Left out of the totals. Right-click to count it again.") : "")
+            .tag(Pick.project(a.id))
+            .contextMenu {
+                if out {
+                    Button("Count in the totals") { model.toggleInDashboard(a.id) }
+                } else {
+                    Button("Leave out of the totals") { model.toggleInDashboard(a.id) }.disabled(!canExclude)
+                }
+            }
+    }
 
-    var body: some View {
+    private func row(icon: some View, name: String, amount: Int, dimmed: Bool) -> some View {
         HStack(spacing: 8) {
-            Image(systemName: checked ? "checkmark.square.fill" : partly ? "minus.square.fill" : "square")
-                .font(.system(size: 14))
-                .foregroundStyle(checked || partly ? Palette.brand : Color.secondary.opacity(0.6))
             icon
-            label
+            Text(name).lineLimit(1)
+            if dimmed { Image(systemName: "eye.slash").font(.caption2).foregroundStyle(.tertiary) }
             Spacer(minLength: 4)
-            amount
+            Text(amount == 0 ? "–" : Money.format(amount, model.currency, compact: true, whole: true))
+                .foregroundStyle(.secondary).monospacedDigit()
         }
-        .contentShape(Rectangle())
-        .onTapGesture(perform: toggle)
-        .onHover { hover = $0 }
-        .opacity(checked || partly ? 1 : 0.55)
+        .opacity(dimmed ? 0.5 : 1)
     }
 }
 
@@ -143,7 +151,7 @@ struct DashboardContent: View {
                 Image(systemName: "checklist.unchecked").font(.system(size: 34, weight: .light)).foregroundStyle(Palette.brand)
                 Text("Tick at least one project").font(.title3.weight(.semibold))
                 Text("Pick the projects to add up in the sidebar, or tick All projects.").foregroundStyle(.secondary)
-                Button("Tick all projects") { model.dashboardExcluded = [] }
+                Button("Count all projects") { model.dashboardExcluded = [] }
                     .buttonStyle(.borderedProminent).tint(Palette.brand).padding(.top, 4)
             }
             .frame(maxWidth: .infinity, minHeight: 420)

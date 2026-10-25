@@ -26,32 +26,42 @@ final class Model: ObservableObject {
     @Published var facts: [UUID: [SubFact]] = [:]
     @Published var revenue: [UUID: [Date: [String: Int]]] = [:]
     @Published var failedInvoices: [UUID: [FailedInvoice]] = [:]
-    /// The projects left out of the dashboard. Empty: all of them count, and a project added later is ticked.
-    /// Remembered from one opening to the next.
+    /// The projects left out of the dashboard's totals (right-click in the sidebar). Empty: all of them count,
+    /// and a project added later counts. Remembered from one opening to the next.
     @Published var dashboardExcluded: Set<UUID> = Set((UserDefaults.standard.stringArray(forKey: "dashboardExcluded") ?? []).compactMap(UUID.init(uuidString:))) {
         didSet {
             if persist { UserDefaults.standard.set(dashboardExcluded.map(\.uuidString), forKey: "dashboardExcluded") }
             rebuildDashboard()
         }
     }
-    /// The ticked projects, in the accounts' order. Can be empty: then the dashboard asks for one.
-    var dashboardAccounts: [Account] { active.filter { !dashboardExcluded.contains($0.id) } }
+    /// The project picked in the sidebar; nil: all projects (the ones that count).
+    @Published var dashboardFocus: UUID? { didSet { rebuildDashboard() } }
+    /// What the dashboard looks at: the picked project, or every project that counts. Never empty with projects.
+    var dashboardAccounts: [Account] {
+        if let id = dashboardFocus, let a = active.first(where: { $0.id == id }) { return [a] }
+        let counted = active.filter { !dashboardExcluded.contains($0.id) }
+        return counted.isEmpty ? active : counted
+    }
     var dashboardAll: Bool { dashboardAccounts.count == active.count }
     var dashboardNone: Bool { dashboardAccounts.isEmpty }
-    /// The one project the dashboard looks at, nil when it shows several, all or none. Setting it ticks only that one; nil ticks all.
+    /// The one project the dashboard looks at, nil when it shows the whole business.
     var dashboardScope: UUID? {
-        get { dashboardAccounts.count == 1 && active.count > 1 ? dashboardAccounts.first?.id : (active.count == 1 ? active.first?.id : nil) }
-        set { dashboardExcluded = newValue.map { id in Set(active.map(\.id).filter { $0 != id }) } ?? [] }
+        get { active.count == 1 ? active.first?.id : dashboardAccounts.count == 1 && dashboardFocus != nil ? dashboardFocus : nil }
+        set { dashboardFocus = newValue }
     }
 
-    /// Ticks or unticks a project in the sidebar.
+    /// Counts a project in the totals, or leaves it out (the last one counted always stays).
     func toggleInDashboard(_ id: UUID) {
-        if dashboardExcluded.contains(id) { dashboardExcluded.remove(id) } else { dashboardExcluded.insert(id) }
+        if dashboardExcluded.contains(id) { dashboardExcluded.remove(id) }
+        else if active.filter({ !dashboardExcluded.contains($0.id) }).count > 1 { dashboardExcluded.insert(id) }
     }
 
-    /// "All projects": ticks everything, or unticks everything when it's all ticked already.
-    func toggleAllInDashboard() {
-        dashboardExcluded = dashboardAll ? Set(active.map(\.id)) : []
+    /// The projects in the sidebar: most MRR first, then the last 30 days' takings.
+    var byMrr: [Account] {
+        active.enumerated().sorted { l, r in
+            let a = (mrrNow(l.element), convert(monthTotal(l.element))), b = (mrrNow(r.element), convert(monthTotal(r.element)))
+            return a != b ? a > b : l.offset < r.offset
+        }.map(\.element)
     }
     @Published var dashboardMonths = 12 { didSet { rebuildDashboard() } }
     @Published var dashboard = DashboardData()

@@ -287,3 +287,7 @@
 "Nothing collected in 30 days, no MRR. A project that sells leaves this list by itself." = "Rien encaissé en 30 jours, pas de MRR. Un projet qui vend sort tout seul de cette liste.";
 "%lld payments today" = "%lld paiements aujourd'hui";
 "%lld payment today" = "%lld paiement aujourd'hui";
+"Count in the totals" = "Compter dans les totaux";
+"Leave out of the totals" = "Exclure des totaux";
+"Left out of the totals. Right-click to count it again." = "Exclu des totaux. Clic droit pour le compter à nouveau.";
+"Count all projects" = "Compter tous les projets";

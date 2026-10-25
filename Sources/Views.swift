@@ -171,8 +171,8 @@ struct MenuPanel: View {
     }
 
     private func openDashboard(_ project: UUID?) {
-        // The Dashboard card keeps the ticked projects; a project's row opens on that project
-        if let project { model.dashboardScope = project }
+        // The Dashboard button opens on all projects, a project's row on that project
+        model.dashboardScope = project
         // The panel closes: the dashboard takes over
         let panel = NSApp.keyWindow
         openWindow(id: "dashboard")
