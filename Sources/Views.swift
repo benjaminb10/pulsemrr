@@ -173,7 +173,10 @@ struct MenuPanel: View {
     private func openDashboard(_ project: UUID?) {
         // The Dashboard card keeps the ticked projects; a project's row opens on that project
         if let project { model.dashboardScope = project }
+        // The panel closes: the dashboard takes over
+        let panel = NSApp.keyWindow
         openWindow(id: "dashboard")
+        panel?.close()
         NSApp.activate(ignoringOtherApps: true)
     }
 }
@@ -198,13 +201,14 @@ struct DashboardButton: View {
 
     var body: some View {
         Button(action: open) {
-            HStack(spacing: 5) {
-                Image(systemName: "chart.xyaxis.line").font(.system(size: 10, weight: .semibold))
-                Text("Dashboard").font(.caption.weight(.semibold))
+            HStack(spacing: 6) {
+                Image(systemName: "chart.xyaxis.line").font(.system(size: 12, weight: .bold))
+                Text("Dashboard").font(.subheadline.weight(.semibold))
             }
-            .foregroundStyle(Palette.brand)
-            .padding(.horizontal, 9).padding(.vertical, 5)
-            .background(Palette.brand.opacity(hover ? 0.16 : 0.10), in: Capsule())
+            .foregroundStyle(.white)
+            .padding(.horizontal, 12).padding(.vertical, 6)
+            .background(Palette.brand.opacity(hover ? 0.85 : 1), in: Capsule())
+            .shadow(color: Palette.brand.opacity(0.35), radius: 4, y: 1)
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
