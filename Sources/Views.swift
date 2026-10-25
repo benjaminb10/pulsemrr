@@ -324,7 +324,7 @@ struct ProjectRow: View {
         if d.atRiskCount > 0 { lines.append(String(format: String(localized: d.atRiskCount > 1 ? "%lld failed payments" : "%lld failed payment"), d.atRiskCount) + " · " + Money.format(model.convert(d.atRisk), model.currency)) }
         if d.trialCount > 0 {
             var t = String(format: String(localized: d.trialCount > 1 ? "%lld trials" : "%lld trial"), d.trialCount)
-            if let c = d.conversion { t += " · " + String(format: String(localized: "%lld %% of past trials became paying"), Int((c * 100).rounded())) }
+            if let c = d.conversion { t += " · " + String(format: String(localized: "%lld %% expected to pay, by trial age"), Int((c * 100).rounded())) }
             lines.append(t)
         }
         if d.leavingCount > 0 { lines.append(String(format: String(localized: d.leavingCount > 1 ? "%lld cancellations" : "%lld cancellation"), d.leavingCount)) }
@@ -395,16 +395,16 @@ struct MrrBreakdown: View {
         LazyVGrid(columns: [GridItem(.flexible(), spacing: 6), GridItem(.flexible(), spacing: 6)], alignment: .leading, spacing: 6) {
             if risk.count > 0 {
                 chip("exclamationmark.triangle.fill", Palette.loss, String(localized: "At risk"), Money.format(risk.amount, cur, compact: true),
-                     String(format: String(localized: "%lld subscriptions with a failed payment, not counted in the MRR. Stripe is still retrying."), risk.count))
+                     String(format: String(localized: "%lld subscriptions with a failed payment, not counted in the real MRR. Stripe is still retrying."), risk.count))
             }
             if trials.count > 0 {
                 let conv = model.conversionTotal.map { " · \(Int(($0 * 100).rounded())) %" } ?? ""
                 chip("hourglass", .secondary, String(localized: "Trials"), Money.format(trials.amount, cur, compact: true) + conv,
-                     String(format: String(localized: "%lld trials that will be charged at the end, and the share of past trials that became paying."), trials.count))
+                     String(format: String(localized: "%lld trials that will be charged at the end, and the share expected to pay: each trial weighs the pay rate of past trials that reached its age without cancelling."), trials.count))
             }
             if let projected = model.projectedTotal, trials.count > 0 {
                 chip("chart.line.uptrend.xyaxis", Palette.money, String(localized: "Projected"), Money.format(projected, cur, compact: true),
-                     String(localized: "MRR + current trials × your real trial conversion rate."))
+                     String(localized: "Real MRR + each running trial × the pay rate of past trials at its age."))
             }
             if leaving.count > 0 {
                 chip("door.left.hand.open", .secondary, String(localized: "Leaving"), Money.format(leaving.amount, cur, compact: true),
@@ -650,6 +650,7 @@ struct AccountRow: View {
     @Binding var account: Account
     @State private var picking = false
     @State private var confirmDelete = false
+    @State private var excluding = false
 
     var body: some View {
         HStack(spacing: 10) {
@@ -670,6 +671,13 @@ struct AccountRow: View {
                 }
             }
             Spacer()
+            if !account.isRevenueCat {
+                Button { excluding = true } label: {
+                    Image(systemName: account.excludedEmails.isEmpty ? "person.crop.circle.badge.minus" : "person.crop.circle.fill.badge.minus")
+                }
+                .buttonStyle(.borderless).foregroundStyle(.secondary).help("Customers left out of the figures")
+                .popover(isPresented: $excluding, arrowEdge: .bottom) { ExcludedEmails(model: model, account: account) }
+            }
             Toggle("", isOn: $account.enabled).labelsHidden().toggleStyle(.switch).controlSize(.small)
                 .help(account.enabled ? "Watched" : "Paused")
             Button { confirmDelete = true } label: { Image(systemName: "trash") }
@@ -679,6 +687,30 @@ struct AccountRow: View {
                 } message: { Text("Its key is deleted from the Keychain. You can add it back at any time.") }
         }
         .padding(.vertical, 4)
+    }
+}
+
+/// Emails whose subscriptions count nowhere (MRR, trials, churn): your own test accounts, a friend on a free ride.
+struct ExcludedEmails: View {
+    @ObservedObject var model: Model
+    let account: Account
+    @State private var text = ""
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Customers left out of the figures").font(.headline)
+            Text("One email per line. Their subscriptions count nowhere: not in the MRR, the trials or the churn.")
+                .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            TextEditor(text: $text).font(.system(.body, design: .monospaced)).frame(height: 90)
+                .overlay(RoundedRectangle(cornerRadius: 5).stroke(Color.secondary.opacity(0.3)))
+            HStack {
+                Spacer()
+                Button("Save") { model.setExcludedEmails(account.id, text) }.keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(12)
+        .frame(width: 300)
+        .onAppear { text = account.excludedEmails.joined(separator: "\n") }
     }
 }
 

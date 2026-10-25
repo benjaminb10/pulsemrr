@@ -104,7 +104,7 @@
 "Projected" = "Projeté";
 "Leaving" = "Qui partent";
 "%lld subscriptions with a failed payment, not counted in the MRR. Stripe is still retrying." = "%lld abonnements en impayé, non comptés dans le MRR. Stripe retente encore le paiement.";
-"%lld trials that will be charged at the end, and the share of past trials that became paying." = "%lld essais qui seront facturés à la fin, et la part des essais passés devenus payants.";
+"%lld trials that will be charged at the end, and the share expected to pay: each trial weighs the pay rate of past trials that reached its age without cancelling." = "%lld essais qui seront facturés à la fin, et la part attendue : chaque essai pèse le taux de paiement des essais passés arrivés à son âge sans annuler.";
 "MRR + current trials × your real trial conversion rate." = "MRR + essais en cours × ton vrai taux de conversion des essais.";
 "%lld subscribers cancelled: still paying until the end of their period." = "%lld abonnés ont résilié : ils paient encore jusqu'à la fin de leur période.";
 "To do" = "À traiter";
@@ -133,7 +133,7 @@
 "Today's new customers in the menu bar" = "Nouveaux clients du jour dans la barre des menus";
 "Latest" = "Dernières activités";
 "Quiet today" = "Rien aujourd'hui";
-"%lld %% of past trials became paying" = "%lld %% des essais passés sont devenus payants";
+"%lld %% expected to pay, by trial age" = "%lld %% attendus payants, selon l'âge de l'essai";
 "Keep notifications on screen" = "Garder les notifications à l'écran";
 "In System Settings, set PulseMRR's style to Persistent: each sale stays until you dismiss it." = "Dans Réglages Système, choisis le style « Persistant » pour PulseMRR : chaque vente reste affichée jusqu'à ce que tu la fermes.";
 "Open…" = "Ouvrir…";
@@ -240,7 +240,7 @@
 "%@ + %@ of %@ in trials" = "%1$@ + %2$@ des %3$@ en essai";
 "No trial has ended yet" = "Aucun essai terminé pour l'instant";
 "In trial" = "En essai";
-"%lld cancelling" = "%lld sur le départ";
+"%lld being cancelled" = "%lld en cours d'annulation";
 "Paying" = "Payants";
 "Cancelled" = "Annulés";
 "Ended trials (%lld customer)" = "Essais terminés (%lld client)";
@@ -255,7 +255,7 @@
 "New paying customers (%lld)" = "Nouveaux payants (%lld)";
 "New trials (%lld)" = "Nouveaux essais (%lld)";
 "Trials cancelled (%lld)" = "Essais annulés (%lld)";
-"Where they stand today. The projection uses this paying share." = "Où ils en sont aujourd'hui. La projection utilise cette part de payants.";
+"One per customer. Closed by Stripe after failed charges counts as a failed payment, not a cancellation. The projection uses the paying share at each trial's age." = "Un par client. Fermé par Stripe après des prélèvements refusés, c'est un paiement échoué, pas une annulation. La projection utilise la part de payants à l'âge de chaque essai.";
 "Only" = "Seulement";
 "Show only this project" = "Afficher seulement ce projet";
 "%lld project" = "%lld projet";
@@ -271,7 +271,7 @@
 "30-day churn" = "Churn sur 30 jours";
 "Customers lost that day (%lld)" = "Clients perdus ce jour-là (%lld)";
 "Lost that day" = "Perdus ce jour-là";
-"Paying 30 days earlier" = "Payants 30 jours avant";
+"Paying during those 30 days" = "Payants pendant ces 30 jours";
 "Tick at least one project" = "Cochez au moins un projet";
 "Pick the projects to add up in the sidebar, or tick All projects." = "Choisissez dans la barre latérale les projets à additionner, ou cochez Tous les projets.";
 "Tick all projects" = "Cocher tous les projets";
@@ -291,3 +291,21 @@
 "Leave out of the totals" = "Exclure des totaux";
 "Left out of the totals. Right-click to count it again." = "Exclu des totaux. Clic droit pour le compter à nouveau.";
 "Count all projects" = "Compter tous les projets";
+
+/* Viewlify MRR rules */
+"Monthly recurring revenue from active subscriptions, at list price (yearly plans / 12). Failed payments and trials don't count. ARR = MRR × 12." = "Revenu mensuel récurrent des abonnements actifs, au prix catalogue (annuels / 12). Les impayés et les essais ne comptent pas. ARR = MRR × 12.";
+"Paying customers lost in the last 30 days, out of the ones who paid at some point in those 30 days. Trials that never paid are not churn." = "Clients payants perdus sur les 30 derniers jours, parmi ceux qui ont payé à un moment de ces 30 jours. Les essais jamais payés ne sont pas du churn.";
+"Trials that ended in the last 90 days, one per customer, and the share that paid at least once." = "Essais terminés sur les 90 derniers jours, un par client, et la part qui a payé au moins une fois.";
+"%@ of %@ in trial, rate by trial age" = "%1$@ des %2$@ en essai, taux selon l'âge de l'essai";
+"If every trial pays: %@" = "Si tous les essais paient : %@";
+"No trial running" = "Aucun essai en cours";
+"%lld payment past due, not in the MRR" = "%lld impayé, hors MRR";
+"%lld payments past due, not in the MRR" = "%lld impayés, hors MRR";
+"30 days: %lld lost (%lld cancelled, %lld failed payments), %@ of MRR" = "30 jours : %1$lld perdus (%2$lld annulations, %3$lld paiements échoués), %4$@ de MRR";
+"%lld set to cancel (%@)" = "%1$lld en cours d'annulation (%2$@)";
+"since the start: %lld of %lld paying customers lost" = "depuis le début : %1$lld clients payants perdus sur %2$lld";
+"%lld subscriptions with a failed payment, not counted in the real MRR. Stripe is still retrying." = "%lld abonnements avec un paiement échoué, hors MRR réel. Stripe réessaie encore.";
+"Real MRR + each running trial × the pay rate of past trials at its age." = "MRR réel + chaque essai en cours × le taux de paiement des essais passés à son âge.";
+"Customers left out of the figures" = "Clients exclus des chiffres";
+"One email per line. Their subscriptions count nowhere: not in the MRR, the trials or the churn." = "Un email par ligne. Leurs abonnements ne comptent nulle part : ni dans le MRR, ni dans les essais, ni dans le churn.";
+"Save" = "Enregistrer";

@@ -324,9 +324,10 @@ struct KpiGrid: View {
         let m30 = d.last30
         Grid(horizontalSpacing: 14, verticalSpacing: 14) {
             GridRow {
-                Kpi(title: "MRR", value: Fmt.money(d.mrr, model, compact: false),
-                    note: d.growth.map { Text(Fmt.signedPercent($0)).foregroundColor(tone($0)) + Text(" ") + Text("in 30 days") },
-                    help: String(localized: "Monthly recurring revenue from active subscriptions, at list price. Failed payments and trials don't count."))
+                Kpi(title: String(localized: "Real MRR"), value: Fmt.money(d.mrr, model, compact: false),
+                    note: (d.growth.map { Text(Fmt.signedPercent($0)).foregroundColor(tone($0)) + Text(" ") + Text("in 30 days") + Text("  ·  ") } ?? Text(""))
+                        + Text(verbatim: "ARR ") + Text(Fmt.money(d.mrr * 12, model)),
+                    help: String(localized: "Monthly recurring revenue from active subscriptions, at list price (yearly plans / 12). Failed payments and trials don't count. ARR = MRR × 12."))
                 Kpi(title: String(localized: "Net new MRR"), value: Fmt.signed(m30.net, model),
                     note: Text(Fmt.signed(m30.new + m30.expansion + m30.reactivation, model)).foregroundColor(Palette.money) + Text("  ") + Text(Fmt.signed(-(m30.churn + m30.contraction), model)).foregroundColor(Palette.loss) + Text("  ·  ") + Text("30 days"),
                     help: String(localized: "New, upgraded and returning customers, minus the ones who left or pay less, over the last 30 days."))
@@ -339,8 +340,8 @@ struct KpiGrid: View {
             }
             GridRow {
                 Kpi(title: String(localized: "Customer churn"), value: Fmt.percent(d.customerChurn),
-                    note: Text(String(format: String(localized: "%lld of %lld left in 30 days"), m30.churnedCustomers, m30.startCustomers)),
-                    help: String(localized: "Share of the customers paying 30 days ago who no longer pay."))
+                    note: Text(String(format: String(localized: "%lld of %lld left in 30 days"), d.churnNow.lost.count, d.churnNow.base.count)),
+                    help: String(localized: "Paying customers lost in the last 30 days, out of the ones who paid at some point in those 30 days. Trials that never paid are not churn."))
                 Kpi(title: String(localized: "Revenue churn"), value: Fmt.percent(d.revenueChurn),
                     note: Text(Fmt.money(m30.churn + m30.contraction, model)) + Text(" ") + Text("lost in 30 days"),
                     help: String(localized: "MRR lost to cancellations and downgrades in 30 days, against the MRR of 30 days ago."))
@@ -349,7 +350,7 @@ struct KpiGrid: View {
                     help: String(localized: "What a customer brings in over their whole time with you: revenue per customer divided by the monthly customer churn of the last 90 days."))
                 Kpi(title: String(localized: "Trial conversion"), value: Fmt.percent(d.trialConversion, digits: 0),
                     note: Text(Fmt.count(d.trialsEnded, "of %lld trial ended in 90 days", "of %lld trials ended in 90 days")),
-                    help: String(localized: "Trials that ended in the last 90 days and became paying."))
+                    help: String(localized: "Trials that ended in the last 90 days, one per customer, and the share that paid at least once."))
             }
         }
     }
@@ -942,15 +943,16 @@ struct ProjectionSection: View {
         HStack(alignment: .top, spacing: 18) {
             ProjectionChartCard(model: model, p: p)
             VStack(spacing: 14) {
-                SideStat(title: String(localized: "Projection at the real conversion rate"), value: Fmt.money(p.projected, model, compact: false),
-                         note: p.rate.map { String(format: String(localized: "%@ + %@ of %@ in trials"), Fmt.money(p.real, model), Fmt.percent($0, digits: 0), Fmt.money(p.trials, model)) }
-                            ?? String(localized: "No trial has ended yet"),
+                SideStat(title: String(localized: "Projection at the real conversion rate"), value: Fmt.money(p.projected ?? p.real, model, compact: false),
+                         note: p.projected == nil ? String(localized: "No trial has ended yet")
+                            : (p.rate.map { String(format: String(localized: "%@ of %@ in trial, rate by trial age"), Fmt.percent($0, digits: 0), Fmt.money(p.trials, model)) } ?? String(localized: "No trial running"))
+                                + "\n" + String(format: String(localized: "If every trial pays: %@"), Fmt.money(p.real + p.trials, model)),
                          tint: Palette.brand)
                 HStack(spacing: 14) {
                     SideStat(title: String(localized: "In trial"), value: Fmt.money(p.trials, model),
-                             note: Fmt.count(p.trialCount, "%lld trial", "%lld trials") + (p.trialsCancelling > 0 ? " · " + String(format: String(localized: "%lld cancelling"), p.trialsCancelling) : ""))
+                             note: Fmt.count(p.trialCount, "%lld trial", "%lld trials") + (p.trialsCancelling > 0 ? " · " + String(format: String(localized: "%lld being cancelled"), p.trialsCancelling) : ""))
                     SideStat(title: String(localized: "At risk"), value: Fmt.money(p.atRisk, model),
-                             note: Fmt.count(p.atRiskCount, "%lld failed payment", "%lld failed payments"), tint: p.atRisk > 0 ? Palette.warn : nil)
+                             note: Fmt.count(p.atRiskCount, "%lld payment past due, not in the MRR", "%lld payments past due, not in the MRR"), tint: p.atRisk > 0 ? Palette.warn : nil)
                 }
                 EndedTrialsCard(model: model, p: p)
             }
@@ -993,7 +995,7 @@ struct EndedTrialsCard: View {
         VStack(alignment: .leading, spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(Fmt.count(p.ended, "Ended trials (%lld customer)", "Ended trials (%lld customers)")).font(.callout.weight(.medium)).foregroundStyle(.secondary)
-                Text("Where they stand today. The projection uses this paying share.").font(.caption).foregroundStyle(.tertiary)
+                Text("One per customer. Closed by Stripe after failed charges counts as a failed payment, not a cancellation. The projection uses the paying share at each trial's age.").font(.caption).foregroundStyle(.tertiary)
                     .fixedSize(horizontal: false, vertical: true)
             }
             GeometryReader { geo in
@@ -1250,6 +1252,17 @@ struct ChurnCard: View {
     @ObservedObject var model: Model
     @State private var hover: Date?
 
+    /// The last 30 days by reason, the ones set to leave, and since the start.
+    private var summary: String {
+        let d = model.dashboard, c = d.churnNow
+        let failed = c.lost.filter(\.paymentFailed).count
+        var parts = [String(format: String(localized: "30 days: %lld lost (%lld cancelled, %lld failed payments), %@ of MRR"),
+                            c.lost.count, c.lost.count - failed, failed, Fmt.money(c.lost.reduce(0) { $0 + $1.lostMrr }, model))]
+        if d.cancelling > 0 { parts.append(String(format: String(localized: "%lld set to cancel (%@)"), d.cancelling, Fmt.money(d.cancellingMrr, model))) }
+        parts.append(String(format: String(localized: "since the start: %lld of %lld paying customers lost"), d.lostAllTime, d.everPaid))
+        return parts.joined(separator: " · ")
+    }
+
     var body: some View {
         let days = model.dashboard.churn
         let first = days.first?.date ?? Date(), last = (days.last?.date ?? Date()).addingTimeInterval(86400)
@@ -1276,6 +1289,7 @@ struct ChurnCard: View {
                     }
                 }
                 .font(.caption).foregroundStyle(.secondary)
+                Text(summary).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 Chart {
                     ForEach(days.filter { $0.rate != nil }) { d in
                         AreaMark(x: .value("Day", d.date), y: .value("Churn", d.rate!))
@@ -1291,7 +1305,7 @@ struct ChurnCard: View {
                                 ChartTip(title: Fmt.date(d.date, "EEEE d MMM"), rows: [
                                     (Palette.loss, String(localized: "30-day churn"), Fmt.percent(d.rate)),
                                     (Palette.loss.opacity(0.45), String(localized: "Lost that day"), "\(d.lost)"),
-                                    (Color.secondary, String(localized: "Paying 30 days earlier"), "\(d.base)"),
+                                    (Color.secondary, String(localized: "Paying during those 30 days"), "\(d.base)"),
                                 ])
                             }
                         if let r = d.rate { PointMark(x: .value("Day", d.date), y: .value("Churn", r)).foregroundStyle(Palette.loss).symbolSize(40) }

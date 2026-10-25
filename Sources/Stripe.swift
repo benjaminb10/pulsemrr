@@ -119,60 +119,23 @@ struct StripeClient {
         return out
     }
 
-    /// MRR the way a founder reads it, not Stripe's headline figure:
-    /// real = active subscriptions only; at risk = past_due (payment failed, Stripe still retrying);
-    /// trials = trialing and not set to cancel; conversion = paying share of ended trials, one per customer;
-    /// projected = real + trials x conversion. Deleted customers are test fixtures and never count.
+    /// MRR the way a founder reads it, not Stripe's headline figure (the rules are in Metrics.swift):
+    /// real = active subscriptions only; at risk = past_due; trials = trialing and not set to cancel;
+    /// projected = real + each trial x the pay rate of ended trials at its age. Deleted customers never count.
     func mrr() async throws -> MrrSnapshot { try await mrrAndHistory().0 }
 
-    /// The MRR snapshot, and every subscription's paying period for the dashboard, from one read of the list.
-    func mrrAndHistory() async throws -> (MrrSnapshot, [SubFact]) {
+    /// The MRR snapshot and every subscription as a fact, from one read of the list. `firstPaid`: each subscription's
+    /// first paid invoice (nil when the invoices can't be read). `excluded`: emails left out everywhere (lowercase).
+    func mrrAndHistory(firstPaid: [String: Date]? = nil, excluded: Set<String> = []) async throws -> (MrrSnapshot, [SubFact]) {
         let subs = try await list("subscriptions", [("status", "all"), ("expand[]", "data.customer")], max: 20000)
-        let now = Int(Date().timeIntervalSince1970)
-        func isTest(_ s: [String: Any]) -> Bool { (s["customer"] as? [String: Any])?["deleted"] as? Bool == true }
-        let real = subs.filter { ($0["status"] as? String) == "active" && !isTest($0) }
-        var snap = MrrSnapshot()
-        for s in real {
-            add(&snap.real, s)
-            if s["cancel_at_period_end"] as? Bool == true { add(&snap.leaving, s); snap.leavingCount += 1 }
-        }
-        snap.activeCount = real.count
-        for s in subs where ["past_due", "unpaid"].contains(s["status"] as? String ?? "") && !isTest(s) {
-            add(&snap.atRisk, s); snap.atRiskCount += 1
-            var one: [String: Int] = [:]; add(&one, s)
-            let cus = s["customer"] as? [String: Any]
-            snap.failing.append(FailingSub(id: s["id"] as? String ?? "", who: StripeClient.person(name: cus?["name"] as? String, email: cus?["email"] as? String),
-                                           amount: one.values.first ?? 0, currency: one.keys.first ?? "eur",
-                                           since: Date(timeIntervalSince1970: TimeInterval(s["current_period_start"] as? Int ?? 0))))
-        }
-        for s in subs where (s["status"] as? String) == "trialing" && !isTest(s) {
-            if s["cancel_at_period_end"] as? Bool == true { snap.trialsCancelling += 1 } else { add(&snap.trials, s); snap.trialCount += 1 }
-        }
-        // Ended trials, one outcome per customer: paying if any of their subscriptions is active,
-        // payment failed if past_due or unpaid, otherwise cancelled.
-        var byCustomer: [String: Set<String>] = [:]
-        for s in subs where !isTest(s) {
-            guard let end = s["trial_end"] as? Int, end <= now else { continue }
-            let cus = (s["customer"] as? [String: Any])?["id"] as? String ?? (s["customer"] as? String ?? "")
-            byCustomer[cus, default: []].insert(s["status"] as? String ?? "")
-        }
-        for statuses in byCustomer.values {
-            if statuses.contains("active") { snap.trialsPaying += 1 }
-            else if statuses.contains("past_due") || statuses.contains("unpaid") { snap.trialsFailed += 1 }
-            else { snap.trialsCancelled += 1 }
-        }
-        snap.trialsEnded = byCustomer.count
-        return (snap, subs.compactMap(StripeClient.fact))
+        let now = Date()
+        let facts = subs.compactMap { StripeClient.fact($0, firstPaid: firstPaid, now: now) }.filter { !excluded.contains($0.email ?? "") }
+        return (MrrSnapshot.from(facts, now: now), facts)
     }
 
-    /// Adds one subscription's monthly equivalent (list price less a running percentage coupon, yearly / 12, weekly x 52 / 12) to a per-currency sum.
-    private func add(_ sums: inout [String: Int], _ s: [String: Any]) {
-        for (cur, v) in Self.monthlyValue(s) { sums[cur, default: 0] += v }
-    }
-
+    /// One subscription's monthly equivalent at list price (yearly / 12, weekly x 52 / 12), per currency.
     static func monthlyValue(_ s: [String: Any]) -> [String: Int] {
         var sums: [String: Int] = [:]
-        let keep = 1 - percentOff(s) / 100
         let items = (s["items"] as? [String: Any])?["data"] as? [[String: Any]] ?? []
         for item in items {
             guard let price = item["price"] as? [String: Any], let recurring = price["recurring"] as? [String: Any],
@@ -187,24 +150,9 @@ struct StripeClient {
             default: perMonth = 1.0 / count
             }
             let cur = price["currency"] as? String ?? (s["currency"] as? String ?? "eur")
-            sums[cur, default: 0] += Int((Double(amount * qty) * perMonth * keep).rounded())
+            sums[cur, default: 0] += Int((Double(amount * qty) * perMonth).rounded())
         }
         return sums
-    }
-
-    /// A percentage coupon still running on the subscription (legacy `discount`, or `discounts` when expanded).
-    /// Fixed-amount coupons are left out: spreading them over the items needs proration data Stripe doesn't return here.
-    static func percentOff(_ s: [String: Any]) -> Double {
-        var all = (s["discounts"] as? [Any])?.compactMap { $0 as? [String: Any] } ?? []
-        if let one = s["discount"] as? [String: Any] { all.append(one) }
-        let now = Int(Date().timeIntervalSince1970)
-        for d in all {
-            if let end = d["end"] as? Int, end <= now { continue }
-            let coupon = (d["coupon"] as? [String: Any]) ?? ((d["source"] as? [String: Any])?["coupon"] as? [String: Any])
-            if let p = coupon?["percent_off"] as? Double, p > 0 { return min(p, 100) }
-            if let p = coupon?["percent_off"] as? Int, p > 0 { return Double(min(p, 100)) }
-        }
-        return 0
     }
 }
 
@@ -232,9 +180,24 @@ struct MrrSnapshot: Codable {
     var trialsPaying = 0
     var trialsFailed = 0
     var trialsCancelled = 0
+    /// What the running trials should bring: each one x the pay rate of ended trials at its age, per currency.
+    var expected: [String: Int] = [:]
+    /// Churn over the last 30 days: paying customers lost, out of the ones who paid during the window.
+    var churnBase = 0
+    var churnLost = 0
+    var churnCancelled = 0
+    var churnFailed = 0
+    var churnLostMrr: [String: Int] = [:]
+    /// Customers who ever paid, and how many of them no longer do.
+    var everPaid = 0
+    var lostAllTime = 0
 
-    /// Paying share of ended trials (0...1), nil until a trial has ended.
-    var conversion: Double? { trialsEnded > 0 ? Double(trialsPaying) / Double(trialsEnded) : nil }
+    /// The share of the running trials' MRR expected to pay (0...1), nil until a trial has ended.
+    var conversion: Double? {
+        let t = trials.values.reduce(0, +)
+        return trialsEnded > 0 && t > 0 ? Double(expected.values.reduce(0, +)) / Double(t) : nil
+    }
+    var churnRate: Double? { churnBase > 0 ? Double(churnLost) / Double(churnBase) : nil }
 }
 
 /// The kinds of things worth a notification, each switchable in the settings.

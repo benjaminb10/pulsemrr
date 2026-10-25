@@ -124,16 +124,15 @@ extension Model {
                     let price = prices[ai][Int(rand() * Double(prices[ai].count))]
                     let trialEnd: Date? = trials[ai] ? created.addingTimeInterval(14 * day) : nil
                     if trials[ai] && rand() > 0.42 {
-                        // Trial that never paid
-                        facts.append(SubFact(id: "sub_\(facts.count)", customer: "cus_\(ai)_\(facts.count)", who: nil, currency: "usd", monthly: price,
-                                             start: trialEnd!, end: trialEnd, trialEnd: trialEnd, status: trialEnd! > now ? "trialing" : "canceled",
-                                             created: created, canceledAt: created.addingTimeInterval(rand() * 13 * day), cancelAt: trialEnd))
+                        facts.append(SubFact.demoUnpaidTrial(id: "sub_\(facts.count)", customer: "cus_\(ai)_\(facts.count)", price: price, created: created,
+                                                     trialEnd: trialEnd!, cancelAfter: rand() * 13 * day, failedPayment: rand() < 0.25, now: now))
                         continue
                     }
                     let start = trialEnd ?? created
                     guard start < now else {
                         facts.append(SubFact(id: "sub_\(facts.count)", customer: "cus_\(ai)_\(facts.count)", who: nil, currency: "usd", monthly: price,
-                                             start: start, end: nil, trialEnd: trialEnd, status: "trialing", created: created))
+                                             start: start, end: nil, trialEnd: trialEnd, status: "trialing", created: created,
+                                             trialStart: trialEnd == nil ? nil : created, cancelAtPeriodEnd: false, invoicesRead: true))
                         continue
                     }
                     // Months paid before leaving, from the monthly churn rate
@@ -142,8 +141,14 @@ extension Model {
                     let endAt = Calendar.current.date(byAdding: .month, value: months, to: start)!
                     let end: Date? = endAt < now ? endAt : nil
                     let who = names[Int(rand() * 20)] + " " + last[Int(rand() * 20)]
+                    // One departure in five is Stripe giving up on a renewal
+                    let failedRenewal = end != nil && rand() < 0.2
                     facts.append(SubFact(id: "sub_\(facts.count)", customer: "cus_\(ai)_\(facts.count)", who: who, currency: "usd", monthly: price,
-                                         start: start, end: end, trialEnd: trialEnd, status: end == nil ? "active" : "canceled", created: created))
+                                         start: start, end: end, trialEnd: trialEnd, status: end == nil ? "active" : "canceled", created: created,
+                                         canceledAt: end.map { failedRenewal ? $0 : $0.addingTimeInterval(-5 * day) },
+                                         trialStart: trialEnd == nil ? nil : created, endedAt: end, cancelAtPeriodEnd: false,
+                                         cancelReason: end == nil ? nil : (failedRenewal ? "payment_failed" : "cancellation_requested"),
+                                         firstPaid: start, invoicesRead: true))
                     var t = start
                     while t < (end ?? now) {
                         let d = Calendar.current.startOfDay(for: t)
@@ -159,18 +164,12 @@ extension Model {
             m.facts[a.id] = facts
             m.revenue[a.id] = revenue
             m.failedInvoices[a.id] = failed
-            // The panel shows the same MRR as the dashboard
-            let mrr = facts.filter { $0.pays(at: now) }.reduce(0) { $0 + $1.monthly }
-            m.mrr[a.id] = ["usd": mrr]
-            m.mrrDetail[a.id]?.real = ["usd": mrr]
-            // Trial outcomes from the same made-up subscriptions, so every figure agrees
-            let ended = facts.filter { ($0.trialEnd ?? .distantFuture) <= now }
-            let payingNow = ended.filter { $0.pays(at: now) }.count
-            let failedNow = ended.count / 12
-            m.mrrDetail[a.id]?.trialsEnded = ended.count
-            m.mrrDetail[a.id]?.trialsPaying = payingNow
-            m.mrrDetail[a.id]?.trialsFailed = failedNow
-            m.mrrDetail[a.id]?.trialsCancelled = max(0, ended.count - payingNow - failedNow)
+            // The panel shows the same figures as the dashboard: the snapshot from the same made-up subscriptions,
+            // with the made-up failed payments of the panel kept
+            var snap = MrrSnapshot.from(facts, now: now)
+            if let old = m.mrrDetail[a.id] { snap.failing = old.failing; snap.atRisk = old.atRisk; snap.atRiskCount = old.atRiskCount }
+            m.mrr[a.id] = snap.real
+            m.mrrDetail[a.id] = snap
         }
         m.prefs.goal = 25000
         m.dashboardUpdated = now

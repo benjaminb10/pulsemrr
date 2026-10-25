@@ -19,8 +19,11 @@ struct Account: Identifiable, Codable, Hashable {
     /// A RevenueCat project (mobile apps) instead of a Stripe account: its id, read with a secret API v2 key.
     var revenueCatProject: String = ""
     var isRevenueCat: Bool { !revenueCatProject.isEmpty }
+    /// Customers left out of every figure (the founder's own accounts, a friend on a free ride), by email.
+    var excludedEmails: [String] = []
+    var excludedSet: Set<String> { Set(excludedEmails.map { $0.lowercased().trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }) }
 
-    enum CodingKeys: String, CodingKey { case id, name, emoji, connectedAccount, stripeID, currency, live, enabled, useLogo, website, revenueCatProject }
+    enum CodingKeys: String, CodingKey { case id, name, emoji, connectedAccount, stripeID, currency, live, enabled, useLogo, website, revenueCatProject, excludedEmails }
     init(name: String, emoji: String = "💳", connectedAccount: String = "", stripeID: String = "", currency: String = "eur", live: Bool = true) {
         self.name = name; self.emoji = emoji; self.connectedAccount = connectedAccount
         self.stripeID = stripeID; self.currency = currency; self.live = live
@@ -38,6 +41,7 @@ struct Account: Identifiable, Codable, Hashable {
         useLogo = try c.decodeIfPresent(Bool.self, forKey: .useLogo) ?? true
         website = try c.decodeIfPresent(String.self, forKey: .website) ?? ""
         revenueCatProject = try c.decodeIfPresent(String.self, forKey: .revenueCatProject) ?? ""
+        excludedEmails = try c.decodeIfPresent([String].self, forKey: .excludedEmails) ?? []
     }
 
     var logoURL: URL { Disk.folder.appendingPathComponent("logos/\(id.uuidString).png") }

@@ -178,15 +178,16 @@ final class Model: ObservableObject {
     var atRiskTotal: (amount: Int, count: Int) { (convert(sum(details.map(\.atRisk))), details.reduce(0) { $0 + $1.atRiskCount }) }
     var leavingTotal: (amount: Int, count: Int) { (convert(sum(details.map(\.leaving))), details.reduce(0) { $0 + $1.leavingCount }) }
     var trialsTotal: (amount: Int, count: Int) { (convert(sum(details.map(\.trials))), details.reduce(0) { $0 + $1.trialCount }) }
-    /// Conversion of ended trials over every account (each trial weighs the same).
+    /// The share of the running trials' MRR expected to pay, each trial weighted by the pay rate at its age.
     var conversionTotal: Double? {
-        let ended = details.reduce(0) { $0 + $1.trialsEnded }
-        return ended > 0 ? Double(details.reduce(0) { $0 + $1.trialsPaying }) / Double(ended) : nil
+        let withHistory = details.filter { $0.trialsEnded > 0 }
+        let trials = withHistory.reduce(0) { $0 + convert($1.trials) }
+        return trials > 0 ? Double(withHistory.reduce(0) { $0 + convert($1.expected) }) / Double(trials) : nil
     }
-    /// Real MRR plus each account's live trials weighted by that account's own conversion rate.
+    /// Real MRR plus what each account's running trials should bring at their age. Nil until a trial has ended.
     var projectedTotal: Int? {
-        guard details.contains(where: { $0.conversion != nil }) else { return nil }
-        return details.reduce(0) { acc, d in acc + convert(d.real) + Int((Double(convert(d.trials)) * (d.conversion ?? 0)).rounded()) }
+        guard details.contains(where: { $0.trialsEnded > 0 }) else { return nil }
+        return details.reduce(0) { $0 + convert($1.real) + convert($1.expected) }
     }
 
     var menuBarTitle: String {
@@ -328,6 +329,8 @@ final class Model: ObservableObject {
         if recent.count > 400 { recent = Array(recent.prefix(400)) }
     }
 
+    private var firstPaidCache: [UUID: FirstPaidCache] = [:]
+
     /// Trials Stripe marked active whose first payment hasn't come yet, by customer; forgotten after a week.
     private var pendingTrials: [String: Date] = (Disk.read("pending-trials.json", as: [String: Date].self) ?? [:])
         .filter { Date().timeIntervalSince($0.value) < 7 * 86400 }
@@ -346,12 +349,7 @@ final class Model: ObservableObject {
             do {
                 daily[a.id] = try await c.daily(days: 30)
                 signups[a.id] = try await c.newCustomers(days: 2)
-                let (m, f) = try await c.mrrAndHistory()
-                facts[a.id] = f
-                if persist { Disk.write(f, "history/subscriptions-\(a.id.uuidString).json") }
-                mrr[a.id] = m.real
-                mrrDetail[a.id] = m
-                subscribers[a.id] = m.activeCount
+                try await readSubscriptions(a, c)
                 errors[a.id] = nil
             } catch {
                 errors[a.id] = error.localizedDescription
@@ -480,11 +478,7 @@ final class Model: ObservableObject {
             guard let c = client(a) else { continue }
             let id = a.id.uuidString
             do {
-                if force || facts[a.id] == nil {
-                    let (m, f) = try await c.mrrAndHistory()
-                    facts[a.id] = f; mrr[a.id] = m.real; mrrDetail[a.id] = m; subscribers[a.id] = m.activeCount
-                    Disk.write(f, "history/subscriptions-\(id).json")
-                }
+                if force || facts[a.id] == nil { try await readSubscriptions(a, c) }
                 let fetched = revenueFetched[a.id]
                 if force || fetched == nil || Date().timeIntervalSince(fetched!) > 600 {
                     // A full year once, then only the days since the last read (and a few before, for late refunds)
@@ -509,6 +503,38 @@ final class Model: ObservableObject {
             rebuildDashboard()
         }
         dashboardUpdated = Date()
+    }
+
+    /// Each subscription's first paid invoice, per project, kept on disk: the first read takes every paid invoice, the
+    /// next ones only those created in the last 35 days (a renewal Stripe retried for weeks can be paid late).
+    private struct FirstPaidCache: Codable { var fetched: Date; var paid: [String: Date] }
+
+    private func firstPaid(_ a: Account, _ c: StripeClient) async -> [String: Date]? {
+        let file = "history/first-paid-\(a.id.uuidString).json"
+        var cache = firstPaidCache[a.id] ?? Disk.read(file, as: FirstPaidCache.self)
+        do {
+            let fresh = try await c.firstPaid(since: cache.map { $0.fetched.addingTimeInterval(-35 * 86400) })
+            var paid = cache?.paid ?? [:]
+            for (k, v) in fresh { paid[k] = min(paid[k] ?? v, v) }
+            cache = FirstPaidCache(fetched: Date(), paid: paid)
+            firstPaidCache[a.id] = cache
+            if persist { Disk.write(cache, file) }
+        } catch {
+            // A restricted key without Invoices read access: the subscriptions alone, with the old rule
+            if cache == nil { return nil }
+        }
+        return cache?.paid
+    }
+
+    /// Reads a project's subscriptions and first payments into its facts and MRR snapshot, its excluded emails left out.
+    func readSubscriptions(_ a: Account, _ c: StripeClient) async throws {
+        let paid = await firstPaid(a, c)
+        let (m, f) = try await c.mrrAndHistory(firstPaid: paid, excluded: a.excludedSet)
+        facts[a.id] = f
+        if persist { Disk.write(f, "history/subscriptions-\(a.id.uuidString).json") }
+        mrr[a.id] = m.real
+        mrrDetail[a.id] = m
+        subscribers[a.id] = m.activeCount
     }
 
     /// One project's MRR now, from the same subscriptions as the dashboard (on disk from the last run), so it's right
@@ -538,7 +564,7 @@ final class Model: ObservableObject {
             (a.id, Analytics.Outside(mrr: rcMrr[a.id] ?? [:], subscribers: mrrDetail[a.id]?.activeCount ?? 0)) })
         dashboard = Analytics.build(accounts: picked, all: byTakings.filter { a in picked.contains { $0.id == a.id } }, facts: facts, revenue: revenue,
                                     failed: failedInvoices, months: dashboardMonths, convert: convert, outside: rc)
-        projection = Projection.build(accounts: picked, facts: facts, snapshots: mrrDetail, convert: convert)
+        projection = Projection.build(accounts: picked, facts: facts, convert: convert)
     }
 
     /// ECB reference rates (frankfurter.app, free, no key), refreshed every 6 hours.
@@ -735,6 +761,20 @@ final class Model: ObservableObject {
 
     func move(from: IndexSet, to: Int) { accounts.move(fromOffsets: from, toOffset: to) }
 
+    /// Sets the emails a project leaves out of its figures, then reads its subscriptions again without them.
+    func setExcludedEmails(_ id: UUID, _ text: String) {
+        guard let i = accounts.firstIndex(where: { $0.id == id }) else { return }
+        let list = text.split(whereSeparator: { $0 == "\n" || $0 == "," || $0 == " " }).map { $0.lowercased() }.filter { $0.contains("@") }
+        guard list != accounts[i].excludedEmails else { return }
+        accounts[i].excludedEmails = list
+        let a = accounts[i]
+        Task {
+            guard let c = client(a) else { return }
+            try? await readSubscriptions(a, c)
+            rebuildDashboard()
+        }
+    }
+
     func remove(_ a: Account) {
         Keychain.delete(a.id)
         accounts.removeAll { $0.id == a.id }
@@ -804,9 +844,11 @@ extension Model {
         let s = mrrDetail[a.id] ?? MrrSnapshot(), p = projection, d = dashboard
         func opt(_ v: Double?) -> Any { v.map { ($0 * 1000).rounded() / 1000 } ?? NSNull() }
         return ["real": p.real, "atRisk": p.atRisk, "atRiskCount": p.atRiskCount, "trials": p.trials, "trialCount": p.trialCount,
-                "trialsCancelling": p.trialsCancelling, "projected": p.projected, "rate": opt(p.rate),
+                "trialsCancelling": p.trialsCancelling, "projected": p.projected ?? NSNull(), "rate": opt(p.rate),
                 "ended": p.ended, "endedPaying": p.endedPaying, "endedFailed": p.endedFailed, "endedCancelled": p.endedCancelled,
                 "leaving": convert(s.leaving), "leavingCount": s.leavingCount, "kpiMrr": d.mrr, "customers": d.customers,
-                "churn30": opt(d.customerChurn), "churnTodayCard": opt(d.churn.last?.rate), "trialConversion90": opt(d.trialConversion)]
+                "churn30": opt(d.customerChurn), "churnTodayCard": opt(d.churn.last?.rate), "trialConversion90": opt(d.trialConversion),
+                "snapReal": convert(s.real), "churnLost": d.churnNow.lost.count, "churnBase": d.churnNow.base.count,
+                "churnFailed": d.churnNow.lost.filter(\.paymentFailed).count, "everPaid": d.everPaid, "lostAllTime": d.lostAllTime]
     }
 }
