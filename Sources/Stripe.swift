@@ -127,7 +127,7 @@ struct StripeClient {
     /// The MRR snapshot and every subscription as a fact, from one read of the list. `firstPaid`: each subscription's
     /// first paid invoice (nil when the invoices can't be read). `excluded`: emails left out everywhere (lowercase).
     func mrrAndHistory(firstPaid: [String: Date]? = nil, excluded: Set<String> = []) async throws -> (MrrSnapshot, [SubFact]) {
-        let subs = try await list("subscriptions", [("status", "all"), ("expand[]", "data.customer")], max: 20000)
+        let subs = try await list("subscriptions", [("status", "all"), ("expand[]", "data.customer"), ("expand[]", "data.latest_invoice")], max: 20000)
         let now = Date()
         let facts = subs.compactMap { StripeClient.fact($0, firstPaid: firstPaid, now: now) }.filter { !excluded.contains($0.email ?? "") }
         return (MrrSnapshot.from(facts, now: now), facts)

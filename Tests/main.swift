@@ -212,6 +212,34 @@ do {
     check(StripeClient.fact(deleted, firstPaid: [:], now: now) == nil, "deleted customers count nowhere")
 }
 
+// MARK: an active subscription whose latest invoice Stripe gave up on
+
+do {
+    func raw(_ inv: [String: Any]?) -> [String: Any] {
+        var s: [String: Any] = ["id": "sub_l", "status": "active", "customer": "cus_l", "start_date": 1000, "trial_start": 1000, "trial_end": 2000,
+                                "items": ["data": [["current_period_start": 9000, "price": ["unit_amount": 9900, "currency": "eur", "recurring": ["interval": "month"]]]]]]
+        if let inv { s["latest_invoice"] = inv }
+        return s
+    }
+    let lost = StripeClient.fact(raw(["status": "uncollectible", "attempt_count": 4]), firstPaid: ["sub_l": t(2000)], now: now)!
+    check(lost.atRisk && !lost.isActive, "uncollectible latest invoice: at risk")
+    eq(lost.end, t(9000), "stops counting at the unpaid period, like a past_due")
+    check(StripeClient.fact(raw(["status": "open", "attempt_count": 4]), firstPaid: [:], now: now)!.atRisk, "open, failed, no retry left: at risk")
+    check(StripeClient.fact(raw(["status": "open", "attempt_count": 1, "next_payment_attempt": 99999]), firstPaid: [:], now: now)!.isActive, "open with a retry planned: still active")
+    check(StripeClient.fact(raw("in_123" as Any as? [String: Any]), firstPaid: [:], now: now)!.isActive, "latest invoice not expanded: active")
+    let never = StripeClient.fact(raw(["status": "uncollectible"]), firstPaid: [:], now: now)!
+    check(!never.paidOnce && !never.pays(at: t(5000)), "never paid and lost: never counts, not a paying customer")
+    eq(Metrics.classifyEndedTrial([never]).outcome, .paymentFailed, "its trial ended in a failed payment")
+    var paying = sub("active", customer: "ok", monthly: 1000, paid: at(-40))
+    var gone = sub("active", customer: "lost", monthly: 9900, paid: at(-40), endedAt: nil); gone.lastInvoiceLost = true
+    let s = MrrSnapshot.from([paying, gone], now: now)
+    eq(s.real["eur"], 1000, "out of the real MRR")
+    eq([s.atRisk["eur"] ?? 0, s.atRiskCount], [9900, 1], "in at risk")
+    eq(s.churnLost, 0, "at risk is not lost yet")
+    paying.cancelAtPeriodEnd = true
+    eq(MrrSnapshot.from([paying, gone], now: now).leavingCount, 1, "leaving counts real active ones only")
+}
+
 // MARK: projection over projects
 
 do {

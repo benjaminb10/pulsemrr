@@ -1,6 +1,6 @@
 // The MRR rules, the way the Viewlify admin board reads Stripe (src/lib/stripe/trial-conversion.ts, mrr.server.ts):
 // pure functions on SubFacts, unit-tested (Tests/run.sh) and ported line by line to the cloud (src/lib/metrics).
-//  - Real MRR: active subscriptions only. At risk: past_due. Trials: trialing and not set to cancel, each subscription counts.
+//  - Real MRR: active subscriptions only. At risk: past_due, or active with a latest invoice Stripe gave up on. Trials: trialing and not set to cancel, each subscription counts.
 //  - Projection: real MRR + each running trial x the pay rate of the ended trials that reached its age without cancelling.
 //  - Churn: paying customers only (a trial that never paid is not churn).
 import Foundation
@@ -54,8 +54,8 @@ enum Metrics {
     /// departure is churn. A subscription Stripe closed after failed charges, or one cancelled only after its trial
     /// ended without paying, is a payment failure, not a choice of the customer.
     static func classifyEndedTrial(_ subs: [SubFact]) -> EndedTrial {
-        if subs.contains(where: { $0.status == "active" || $0.everPaid }) { return EndedTrial(outcome: .paying, cancelAge: nil) }
-        if subs.contains(where: { $0.status == "past_due" || $0.status == "unpaid" }) { return EndedTrial(outcome: .paymentFailed, cancelAge: nil) }
+        if subs.contains(where: { $0.isActive || $0.everPaid }) { return EndedTrial(outcome: .paying, cancelAge: nil) }
+        if subs.contains(where: { $0.atRisk || $0.status == "unpaid" }) { return EndedTrial(outcome: .paymentFailed, cancelAge: nil) }
         var ages: [TimeInterval] = []
         var failed = false
         for s in subs {
@@ -123,13 +123,15 @@ extension MrrSnapshot {
         let ended = Metrics.endedTrials(facts, now: now)
         var expected: [String: Double] = [:]
         for f in facts {
+            if f.atRisk {
+                add(&s.atRisk, f); s.atRiskCount += 1
+                s.failing.append(FailingSub(id: f.id, who: f.who, amount: f.monthly, currency: f.currency, since: f.end ?? f.start))
+                continue
+            }
             switch f.status {
             case "active":
                 add(&s.real, f); s.activeCount += 1
                 if Metrics.isCancelling(f) { add(&s.leaving, f); s.leavingCount += 1 }
-            case "past_due":
-                add(&s.atRisk, f); s.atRiskCount += 1
-                s.failing.append(FailingSub(id: f.id, who: f.who, amount: f.monthly, currency: f.currency, since: f.end ?? f.start))
             case "trialing":
                 if Metrics.isCancelling(f) { s.trialsCancelling += 1; continue }
                 add(&s.trials, f); s.trialCount += 1

@@ -38,12 +38,19 @@ struct SubFact: Codable, Hashable {
     /// True when the paid invoices were read: `firstPaid` nil then means it never paid. Nil in facts from before
     /// they were read (or with a key that can't read invoices): the old rule (paid for more than a day) applies.
     var invoicesRead: Bool? = nil
+    /// Active, but its latest invoice is lost: uncollectible, or open after a failed charge with no retry left.
+    var lastInvoiceLost: Bool? = nil
+
+    /// Active and its latest invoice not lost: counts in the real MRR.
+    var isActive: Bool { status == "active" && lastInvoiceLost != true }
+    /// Payment failed: past_due, or active with a lost latest invoice. At risk, out of the real MRR.
+    var atRisk: Bool { status == "past_due" || (status == "active" && lastInvoiceLost == true) }
 
     func pays(at t: Date) -> Bool { start <= t && (end.map { t < $0 } ?? true) }
     /// Has a paid invoice with money in it.
     var everPaid: Bool { invoicesRead == true ? firstPaid != nil : (end.map { $0.timeIntervalSince(start) > 86400 } ?? (status != "trialing")) }
     /// A paying customer: paid at least once, or active (a 100% coupon pays nothing and still counts).
-    var paidOnce: Bool { everPaid || status == "active" }
+    var paidOnce: Bool { everPaid || isActive }
 }
 
 extension SubFact {
@@ -112,12 +119,14 @@ extension StripeClient {
         let trialEnd = date(s["trial_end"])
         let started = date(s["start_date"]) ?? date(s["created"]) ?? now
         let endedAt = date(s["ended_at"])
+        let lost = status == "active" && invoiceLost(s["latest_invoice"])
         var start = max(started, trialEnd ?? started)
         var end: Date?
         if let firstPaid {
-            if let from = firstPaid[id] ?? (status == "active" ? (trialEnd ?? started) : nil) {
+            if let from = firstPaid[id] ?? (status == "active" && !lost ? (trialEnd ?? started) : nil) {
                 start = from
                 switch status {
+                case "active" where lost: end = endedAt ?? periodStart ?? now
                 case "active", "trialing": end = endedAt
                 case "past_due", "unpaid", "paused": end = endedAt ?? periodStart ?? now
                 default: end = endedAt ?? date(s["canceled_at"]) ?? start
@@ -129,6 +138,7 @@ extension StripeClient {
             }
         } else {
             switch status {
+            case "active" where lost: end = periodStart ?? start
             case "active", "trialing": end = nil
             case "past_due", "unpaid", "paused": end = periodStart ?? start
             default: end = endedAt ?? date(s["canceled_at"]) ?? start
@@ -142,7 +152,18 @@ extension StripeClient {
                        cancelAt: date(s["cancel_at"]) ?? (s["cancel_at_period_end"] as? Bool == true ? periodEnd : nil),
                        trialStart: date(s["trial_start"]), endedAt: endedAt, cancelAtPeriodEnd: s["cancel_at_period_end"] as? Bool == true,
                        cancelReason: (s["cancellation_details"] as? [String: Any])?["reason"] as? String,
-                       firstPaid: firstPaid?[id], invoicesRead: firstPaid != nil ? true : nil)
+                       firstPaid: firstPaid?[id], invoicesRead: firstPaid != nil ? true : nil, lastInvoiceLost: lost ? true : nil)
+    }
+
+    /// A latest invoice Stripe gave up on: uncollectible, or open after a failed charge with no retry planned.
+    /// Only readable when `latest_invoice` is expanded (an id alone says nothing).
+    static func invoiceLost(_ v: Any?) -> Bool {
+        guard let inv = v as? [String: Any] else { return false }
+        switch inv["status"] as? String {
+        case "uncollectible": return true
+        case "open": return (inv["attempt_count"] as? Int ?? 0) >= 1 && !(inv["next_payment_attempt"] is Int)
+        default: return false
+        }
     }
 
     /// Each subscription's first paid invoice with money in it, from a list of paid invoices.
@@ -362,7 +383,7 @@ enum Analytics {
             d.churn.append(.init(date: day, rate: c.rate, lost: lost, base: c.base.count))
         }
         d.churnNow = Metrics.churn30(customers, at: now)
-        let leaving = list.filter { $0.fact.status == "active" && Metrics.isCancelling($0.fact) }
+        let leaving = list.filter { $0.fact.isActive && Metrics.isCancelling($0.fact) }
         d.cancelling = leaving.count
         d.cancellingMrr = leaving.reduce(0) { $0 + $1.monthly }
         d.everPaid = customers.count
@@ -492,7 +513,7 @@ struct Projection {
         p.expected = Int(live.reduce(0.0) { $0 + weight($1) }.rounded())
         if ended.values.contains(where: { !$0.isEmpty }) { p.projected = p.real + p.expected }
 
-        let pastDue = items.filter { $0.fact.status == "past_due" }
+        let pastDue = items.filter { $0.fact.atRisk }
         p.atRisk = pastDue.reduce(0) { $0 + $1.monthly }
         p.atRiskCount = pastDue.count
         for e in ended.values {
@@ -503,7 +524,7 @@ struct Projection {
         }
 
         // The future, to the last running trial's end
-        let paying = items.filter { $0.fact.status == "active" }
+        let paying = items.filter { $0.fact.isActive }
         let ends = live.compactMap(\.fact.trialEnd).filter { $0 > now }
         if let last = ends.max() {
             let horizon = min(last, now.addingTimeInterval(Double(maxAhead) * day))
