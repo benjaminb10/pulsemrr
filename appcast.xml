@@ -4,10 +4,10 @@
     <title>PulseMRR</title>
     <link>https://github.com/benjaminb10/pulsemrr</link>
     <item>
-      <title>PulseMRR 0.9.16</title>
-      <pubDate>Sun, 25 Oct 2026 03:07:08 +0000</pubDate>
-      <sparkle:version>52</sparkle:version>
-      <sparkle:shortVersionString>0.9.16</sparkle:shortVersionString>
+      <title>PulseMRR 0.9.17</title>
+      <pubDate>Mon, 26 Oct 2026 00:24:51 +0000</pubDate>
+      <sparkle:version>56</sparkle:version>
+      <sparkle:shortVersionString>0.9.17</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
       <description><![CDATA[
 <style>
@@ -19,10 +19,19 @@
   a { color: #594FE0; }
 </style>
 <ul dir="auto">
-<li>A clearer <strong>dashboard sidebar</strong>: click a line to look at all projects or one, sorted by MRR, with quiet projects folded away. Right-click a project to leave it out of the totals.</li>
+<li><strong>More accurate MRR</strong>, with the rules of a real SaaS admin board:
+<ul dir="auto">
+<li><strong>Real MRR</strong> counts active subscriptions only, at list price. Failed payments and invoices Stripe gave up on move to <strong>At risk</strong>, outside the MRR.</li>
+<li><strong>Trials</strong>: cancelled trials no longer count, and trials cancelling are shown apart.</li>
+<li><strong>Smarter projection</strong>: each ended trial is told apart (paid, failed payment, cancelled by the customer, once per customer), and each running trial is weighted by the pay rate at its age.</li>
+<li><strong>Churn</strong> of paying customers only, with the reason (cancellation or failed payment), subscriptions about to end, and churn since the start.</li>
+</ul>
+</li>
+<li><strong>Excluded emails</strong> per project in Settings, to leave internal or test accounts out of every figure.</li>
+<li>Deleted Stripe customers are left out everywhere.</li>
 </ul>
       ]]></description>
-      <enclosure url="https://github.com/benjaminb10/pulsemrr/releases/download/v0.9.16/PulseMRR.dmg" type="application/octet-stream" sparkle:edSignature="fgvWB7lCln5YdHBXHqxNbCCr7HWhEyJMutWKZd4zSh5Wgr9RPoJQG+WIQ/0tpwvbkwUojkx4C9w950Ug83YcBw==" length="3964775" />
+      <enclosure url="https://github.com/benjaminb10/pulsemrr/releases/download/v0.9.17/PulseMRR.dmg" type="application/octet-stream" sparkle:edSignature="cwsTOajdbUEcEvyxsgcWgZXRfw142dXxQeReGtuF9l6pt0ui83vtLdGVJhXSo7Tdj1qsjPunlqTKKSXts9naCg==" length="4001766" />
     </item>
   </channel>
 </rss>
