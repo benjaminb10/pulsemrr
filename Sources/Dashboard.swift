@@ -448,15 +448,16 @@ struct MovementsCard: View {
             (String(localized: "Contraction"), Palette.warn), (String(localized: "Churn"), Palette.loss),
             (String(localized: "Failed payments"), Palette.failed),
         ]
-        let current = months.last?.move ?? Movement()
+        // The headline is the bridge's net over 30 rolling days: a calendar month reads 0 on the 1st
+        let net = model.dashboard.last30.net
         let weekly = model.dashboardMonths <= 1
         let unit: Calendar.Component = weekly ? .weekOfYear : .month
         Card(title: String(localized: "MRR movements"),
              subtitle: weekly ? String(localized: "What moved the MRR, week by week") : String(localized: "What moved the MRR, month by month")) {
             VStack(alignment: .trailing, spacing: 2) {
-                Text(Fmt.signed(current.net, model)).font(.system(size: 20, weight: .semibold, design: .rounded)).monospacedDigit()
-                    .foregroundStyle(current.net >= 0 ? Palette.money : Palette.loss)
-                Text(weekly ? "this week" : "this month").font(.caption).foregroundStyle(.secondary)
+                Text(Fmt.signed(net, model)).font(.system(size: 20, weight: .semibold, design: .rounded)).monospacedDigit()
+                    .foregroundStyle(net >= 0 ? Palette.money : Palette.loss)
+                Text("in 30 days").font(.caption).foregroundStyle(.secondary)
             }
         } content: {
             Chart {
@@ -799,20 +800,19 @@ struct RevenueCard: View {
             .sorted { $0.date < $1.date }
     }
 
-    /// This month so far against the same days of last month.
+    /// The last 30 days against the 30 before: a calendar month would read 0 on the 1st.
     private var comparison: String {
         let cal = Calendar.current
-        let now = Date()
-        let start = cal.dateInterval(of: .month, for: now)!.start
-        let prevStart = cal.date(byAdding: .month, value: -1, to: start)!
-        let prevEnd = cal.date(byAdding: .month, value: -1, to: now)!
+        let today = cal.startOfDay(for: Date())
+        let start = cal.date(byAdding: .day, value: -29, to: today)!
+        let prevStart = cal.date(byAdding: .day, value: -30, to: start)!
         var this = 0, prev = 0
         for (day, per) in model.dashboard.revenue {
             let v = per.values.reduce(0, +)
-            if day >= start { this += v } else if day >= prevStart && day <= prevEnd { prev += v }
+            if day >= start { this += v } else if day >= prevStart { prev += v }
         }
-        var s = String(localized: "This month") + " " + Fmt.money(this, model)
-        if prev > 0 { s += " · " + Fmt.signedPercent(Double(this - prev) / Double(prev)) + " " + String(localized: "vs the same days last month") }
+        var s = String(localized: "Last 30 days") + " " + Fmt.money(this, model)
+        if prev > 0 { s += " · " + Fmt.signedPercent(Double(this - prev) / Double(prev)) + " " + String(localized: "vs the 30 days before") }
         return s
     }
 

@@ -182,8 +182,6 @@
 "Last %lld months" = "%lld derniers mois";
 "MRR movements" = "Mouvements du MRR";
 "What moved the MRR, month by month" = "Ce qui a fait bouger le MRR, mois par mois";
-"this month" = "ce mois-ci";
-"this week" = "cette semaine";
 "What moved the MRR, week by week" = "Ce qui a fait bouger le MRR, semaine par semaine";
 "Week of %@" = "Semaine du %@";
 "New" = "Nouveaux";
@@ -197,8 +195,6 @@
 "Weeks" = "Semaines";
 "Months" = "Mois";
 "Total shown" = "Total affiché";
-"This month" = "Ce mois-ci";
-"vs the same days last month" = "vs les mêmes jours du mois dernier";
 "MRR goal" = "Objectif de MRR";
 "Goal" = "Objectif";
 "of" = "sur";
@@ -355,3 +351,4 @@
 "Share" = "Partager";
 "MRR 30 days ago" = "MRR il y a 30 jours";
 "MRR today" = "MRR aujourd'hui";
+"vs the 30 days before" = "vs les 30 jours précédents";
