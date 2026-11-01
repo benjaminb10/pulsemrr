@@ -11,8 +11,8 @@ Run: Tests/recette.sh            (opens the dashboard if no window is open)
 import json, re, subprocess, sys, time
 
 MRR = ("MRR",)
-BRIDGE_START = ("Il y a 30 jours", "30 days ago")
-BRIDGE_END = ("Aujourd'hui", "Today")
+BRIDGE_START = ("MRR il y a 30 jours", "MRR 30 days ago")
+BRIDGE_END = ("MRR aujourd'hui", "MRR today")
 LOADING = ("Lecture de Stripe", "Reading Stripe")
 BAD = re.compile(r"\bNaN\b|\bnan\b|\binf\b|Erreur|Error|\(null\)|Optional\(", re.I)
 PERIOD = re.compile(r"^(1|3|6|12) (mois|months?)$")
@@ -35,6 +35,17 @@ def click(ref):
         if "delivered_unverified" not in str(e):
             raise
     time.sleep(0.5)
+
+
+def click_named(find):
+    """Clicks what `find(nodes)` returns in a fresh snapshot, again if the window changed in between (still loading)."""
+    for attempt in range(4):
+        try:
+            return click(find(snapshot())["ref_id"])
+        except RuntimeError as e:
+            if "STALE_REF" not in str(e) and "AMBIGUOUS_TARGET" not in str(e) or attempt == 3:
+                raise
+            time.sleep(2)
 
 
 def walk(n, out):
@@ -162,8 +173,7 @@ def main():
     failures, done = [], 0
     print(f"{len(rows)} projects × {len(period_names)} periods\n")
     for _, name, _ in rows:
-        row = next(n for _, nm, n in sidebar(snapshot()) if nm == name)
-        click(row["ref_id"])
+        click_named(lambda nodes: next(n for _, nm, n in sidebar(nodes) if nm == name))
         for p in period_names:
             radio = next(n for n in snapshot() if n.get("role") == "radiobutton" and n.get("name") == p)
             if "checked" not in radio.get("states", []):

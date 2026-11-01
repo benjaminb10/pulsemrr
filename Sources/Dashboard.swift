@@ -671,9 +671,9 @@ struct MrrBridgeCard: View {
             Step(id: "failed", label: String(localized: "Failed payments"), customers: m.failedCustomers, amount: -m.failed, color: Palette.failed),
             Step(id: "apps", label: String(localized: "Mobile apps (RevenueCat)"), customers: nil, amount: m.outside, color: Color.secondary.opacity(0.6)),
         ].filter { $0.amount != 0 }
-        let steps = [Step(id: "start", label: String(localized: "30 days ago"), customers: nil, amount: m.startMrr, color: Color.secondary.opacity(0.35), total: true)]
+        let steps = [Step(id: "start", label: String(localized: "MRR 30 days ago"), customers: nil, amount: m.startMrr, color: Color.secondary.opacity(0.35), total: true)]
             + moves
-            + [Step(id: "end", label: String(localized: "Today"), customers: nil, amount: m.endMrr, color: Palette.brand, total: true)]
+            + [Step(id: "end", label: String(localized: "MRR today"), customers: nil, amount: m.endMrr, color: Palette.brand, total: true)]
         // Where each bar starts and ends on the running total
         var running = 0
         let spans: [(Int, Int)] = steps.map { s in
