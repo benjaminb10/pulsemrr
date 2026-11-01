@@ -5,6 +5,8 @@ import SwiftUI
 enum Palette {
     static let money = Color(red: 0.11, green: 0.68, blue: 0.42)
     static let loss = Color(red: 0.88, green: 0.29, blue: 0.27)
+    /// Failed payments: lost like churn, but money that can still come back.
+    static let failed = Color(red: 0.71, green: 0.26, blue: 0.55)
     /// Opaque panel background: white in light mode, near black in dark mode.
     static let surface = Color(nsColor: NSColor(name: nil) { $0.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? NSColor(white: 0.11, alpha: 1) : .white })
     static let line = Color(nsColor: NSColor(name: nil) { $0.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? NSColor(white: 1, alpha: 0.08) : NSColor(white: 0, alpha: 0.07) })

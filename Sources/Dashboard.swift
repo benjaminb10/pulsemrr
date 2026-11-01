@@ -164,6 +164,7 @@ struct DashboardContent: View {
         VStack(alignment: .leading, spacing: 18) {
             header
             KpiGrid(model: model)
+            MrrBridgeCard(model: model)
             if project == nil { TodayCard(model: model) }
             // The goal is about the whole business
             if model.dashboardAll { GoalCard(model: model) }
@@ -329,10 +330,10 @@ struct KpiGrid: View {
                         + Text(verbatim: "ARR ") + Text(Fmt.money(d.mrr * 12, model)),
                     help: String(localized: "Monthly recurring revenue from active subscriptions, at list price (yearly plans / 12). Failed payments and trials don't count. ARR = MRR × 12."))
                 Kpi(title: String(localized: "Net new MRR"), value: Fmt.signed(m30.net, model),
-                    note: Text(Fmt.signed(m30.new + m30.expansion + m30.reactivation, model)).foregroundColor(Palette.money) + Text("  ") + Text(Fmt.signed(-(m30.churn + m30.contraction), model)).foregroundColor(Palette.loss) + Text("  ·  ") + Text("30 days"),
-                    help: String(localized: "New, upgraded and returning customers, minus the ones who left or pay less, over the last 30 days."))
+                    note: Text(Fmt.signed(m30.gained, model)).foregroundColor(Palette.money) + Text("  ") + Text(Fmt.signed(-m30.lost, model)).foregroundColor(Palette.loss) + Text("  ·  ") + Text("30 days"),
+                    help: String(localized: "New, upgraded and returning customers, minus the ones who left, whose payment failed or who pay less, over the last 30 days."))
                 Kpi(title: String(localized: "Paying customers"), value: "\(d.customers)",
-                    note: Text("+\(m30.newCustomers)").foregroundColor(Palette.money) + Text("  ") + Text("−\(m30.churnedCustomers)").foregroundColor(Palette.loss) + Text("  ·  ") + Text("30 days"),
+                    note: Text("+\(m30.newCustomers)").foregroundColor(Palette.money) + Text("  ") + Text("−\(m30.churnedCustomers + m30.failedCustomers)").foregroundColor(Palette.loss) + Text("  ·  ") + Text("30 days"),
                     help: String(localized: "Customers with at least one paying subscription."))
                 Kpi(title: String(localized: "Revenue per customer"), value: Fmt.money(d.arpu, model, compact: false),
                     note: Text("a month (ARPU)"),
@@ -343,14 +344,17 @@ struct KpiGrid: View {
                     note: Text(String(format: String(localized: "%lld of %lld left in 30 days"), d.churnNow.lost.count, d.churnNow.base.count)),
                     help: String(localized: "Paying customers lost in the last 30 days, out of the ones who paid at some point in those 30 days. Trials that never paid are not churn."))
                 Kpi(title: String(localized: "Revenue churn"), value: Fmt.percent(d.revenueChurn),
-                    note: Text(Fmt.money(m30.churn + m30.contraction, model)) + Text(" ") + Text("lost in 30 days"),
-                    help: String(localized: "MRR lost to cancellations and downgrades in 30 days, against the MRR of 30 days ago."))
+                    note: Text(Fmt.money(m30.lost, model)) + Text(" ") + Text("lost in 30 days"),
+                    help: String(localized: "MRR lost to cancellations, failed payments and downgrades in 30 days, against the MRR of 30 days ago."))
                 Kpi(title: String(localized: "Lifetime value"), value: d.ltv.map { Fmt.money($0, model) } ?? "–",
                     note: Text("ARPU ÷ monthly churn"),
                     help: String(localized: "What a customer brings in over their whole time with you: revenue per customer divided by the monthly customer churn of the last 90 days."))
                 Kpi(title: String(localized: "Trial conversion"), value: Fmt.percent(d.trialConversion, digits: 0),
-                    note: Text(Fmt.count(d.trialsEnded, "of %lld trial ended in 90 days", "of %lld trials ended in 90 days")),
-                    help: String(localized: "Trials that ended in the last 90 days, one per customer, and the share that paid at least once."))
+                    note: d.trialsEnded == 0 ? Text(Fmt.count(0, "of %lld trial ended in 90 days", "of %lld trials ended in 90 days"))
+                        : Text(Fmt.count(d.trialsEnded - d.trialsFailed - d.trialsCancelled, "%lld paid", "%lld paid")) + Text("  ·  ")
+                            + Text(Fmt.count(d.trialsFailed, "%lld card refused", "%lld cards refused")).foregroundColor(Palette.warn) + Text("  ·  ")
+                            + Text(Fmt.count(d.trialsCancelled, "%lld cancelled", "%lld cancelled")).foregroundColor(Palette.loss),
+                    help: String(localized: "Trials that ended in the last 90 days, one per customer, and the share that paid at least once. Card refused: Stripe could not charge at the end of the trial. Cancelled: the customer stopped the trial."))
             }
         }
     }
@@ -471,6 +475,7 @@ struct MovementsCard: View {
             (String(localized: "New"), Palette.money), (String(localized: "Expansion"), Palette.mint),
             (String(localized: "Reactivation"), Color(red: 0.08, green: 0.67, blue: 0.70)),
             (String(localized: "Contraction"), Palette.warn), (String(localized: "Churn"), Palette.loss),
+            (String(localized: "Failed payments"), Palette.failed),
         ]
         let current = months.last?.move ?? Movement()
         let weekly = model.dashboardMonths <= 1
@@ -485,7 +490,7 @@ struct MovementsCard: View {
         } content: {
             Chart {
                 ForEach(months) { m in
-                    let parts = [m.move.new, m.move.expansion, m.move.reactivation, -m.move.contraction, -m.move.churn]
+                    let parts = [m.move.new, m.move.expansion, m.move.reactivation, -m.move.contraction, -m.move.churn, -m.move.failed]
                     ForEach(Array(parts.enumerated()), id: \.offset) { i, v in
                         if v != 0 {
                             BarMark(x: .value("Month", m.month, unit: unit), y: .value("MRR", Double(v)), width: .ratio(0.62))
@@ -512,6 +517,7 @@ struct MovementsCard: View {
                                 (kinds[2].1, kinds[2].0, Fmt.signed(m.move.reactivation, model)),
                                 (Palette.warn, kinds[3].0, Fmt.signed(-m.move.contraction, model)),
                                 (Palette.loss, kinds[4].0, Fmt.signed(-m.move.churn, model)),
+                                (Palette.failed, kinds[5].0, Fmt.signed(-m.move.failed, model)),
                                 (Color.primary.opacity(0.7), String(localized: "Net"), Fmt.signed(m.move.net, model)),
                             ])
                         }
@@ -522,7 +528,81 @@ struct MovementsCard: View {
             .chartLegend(position: .bottom, alignment: .leading)
             .modifier(MoneyAxis(model: model, months: model.dashboardMonths))
             .frame(height: 230)
-            .help(String(localized: "Bars: new, upgraded and returning customers above zero, downgrades and cancellations below. Line: the net change."))
+            .help(String(localized: "Bars: new, upgraded and returning customers above zero, downgrades, cancellations and failed payments below. Line: the net change."))
+        }
+    }
+}
+
+/// The last 30 days as a bridge: the MRR of 30 days ago, each kind of movement, and today's MRR, as a waterfall.
+/// Rolling 30 days rather than the calendar month, so it never reads 0 on the 1st.
+struct MrrBridgeCard: View {
+    @ObservedObject var model: Model
+
+    private struct Step: Identifiable {
+        let id: String
+        let label: String
+        let customers: Int?
+        let amount: Int
+        let color: Color
+        /// A total (start, today) drawn from zero, rather than a step from the running total.
+        var total = false
+    }
+
+    var body: some View {
+        let m = model.dashboard.last30
+        let moves: [Step] = [
+            Step(id: "new", label: String(localized: "New customers"), customers: m.newCustomers, amount: m.new, color: Palette.money),
+            Step(id: "exp", label: String(localized: "Upgrades"), customers: nil, amount: m.expansion, color: Palette.mint),
+            Step(id: "back", label: String(localized: "Came back"), customers: nil, amount: m.reactivation, color: Color(red: 0.08, green: 0.67, blue: 0.70)),
+            Step(id: "con", label: String(localized: "Downgrades"), customers: nil, amount: -m.contraction, color: Palette.warn),
+            Step(id: "churn", label: String(localized: "Cancelled plan"), customers: m.churnedCustomers, amount: -m.churn, color: Palette.loss),
+            Step(id: "failed", label: String(localized: "Failed payments"), customers: m.failedCustomers, amount: -m.failed, color: Palette.failed),
+            Step(id: "apps", label: String(localized: "Mobile apps (RevenueCat)"), customers: nil, amount: m.outside, color: Color.secondary.opacity(0.6)),
+        ].filter { $0.amount != 0 }
+        let steps = [Step(id: "start", label: String(localized: "30 days ago"), customers: nil, amount: m.startMrr, color: Color.secondary.opacity(0.35), total: true)]
+            + moves
+            + [Step(id: "end", label: String(localized: "Today"), customers: nil, amount: m.endMrr, color: Palette.brand, total: true)]
+        // Where each bar starts and ends on the running total
+        var running = 0
+        let spans: [(Int, Int)] = steps.map { s in
+            if s.total { running = s.amount; return (0, s.amount) }
+            let from = running; running += s.amount
+            return (min(from, running), max(from, running))
+        }
+        let top = max(1, spans.map(\.1).max() ?? 1)
+
+        Card(title: String(localized: "Where the MRR went"), subtitle: String(localized: "Last 30 days, customer by customer")) {
+            VStack(alignment: .trailing, spacing: 2) {
+                Text(Fmt.signed(m.net, model)).font(.system(size: 20, weight: .semibold, design: .rounded)).monospacedDigit()
+                    .foregroundStyle(m.net >= 0 ? Palette.money : Palette.loss)
+                Text("in 30 days").font(.caption).foregroundStyle(.secondary)
+            }
+        } content: {
+            VStack(spacing: 7) {
+                ForEach(Array(steps.enumerated()), id: \.element.id) { i, s in
+                    HStack(spacing: 12) {
+                        HStack(spacing: 6) {
+                            Text(s.label).fontWeight(s.total ? .semibold : .regular)
+                            if let n = s.customers, n > 0 { Text(verbatim: "\(n)").font(.caption).foregroundStyle(.secondary) }
+                        }
+                        .frame(width: 190, alignment: .leading)
+                        GeometryReader { g in
+                            let w = g.size.width
+                            let (lo, hi) = spans[i]
+                            RoundedRectangle(cornerRadius: 4).fill(s.color)
+                                .frame(width: max(3, w * CGFloat(hi - lo) / CGFloat(top)), height: 16)
+                                .offset(x: w * CGFloat(lo) / CGFloat(top))
+                        }
+                        .frame(height: 16)
+                        Text(s.total ? Fmt.money(s.amount, model, compact: false) : Fmt.signed(s.amount, model))
+                            .monospacedDigit().fontWeight(s.total ? .semibold : .regular)
+                            .foregroundStyle(s.total ? Color.primary : s.amount > 0 ? Palette.money : s.id == "failed" ? Palette.failed : s.id == "apps" ? Color.secondary : Palette.loss)
+                            .frame(width: 110, alignment: .trailing)
+                    }
+                    .font(.callout)
+                }
+            }
+            .help(String(localized: "Each customer counted once: new, paying more, back after leaving, paying less, cancelled, or lost to a failed payment (past due, or closed by Stripe after the retries)."))
         }
     }
 }

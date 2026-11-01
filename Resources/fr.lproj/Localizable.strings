@@ -309,3 +309,22 @@
 "Customers left out of the figures" = "Clients exclus des chiffres";
 "One email per line. Their subscriptions count nowhere: not in the MRR, the trials or the churn." = "Un email par ligne. Leurs abonnements ne comptent nulle part : ni dans le MRR, ni dans les essais, ni dans le churn.";
 "Save" = "Enregistrer";
+
+/* MRR bridge and failed payments (0.9.19) */
+"Where the MRR went" = "D'où vient la variation du MRR";
+"Last 30 days, customer by customer" = "30 derniers jours, client par client";
+"Upgrades" = "Hausses de forfait";
+"Came back" = "Retours";
+"Downgrades" = "Baisses de forfait";
+"Cancelled plan" = "Résiliés";
+"30 days ago" = "Il y a 30 jours";
+"Each customer counted once: new, paying more, back after leaving, paying less, cancelled, or lost to a failed payment (past due, or closed by Stripe after the retries)." = "Chaque client compté une fois : nouveau, paie plus, revenu après être parti, paie moins, résilié, ou perdu sur un impayé (en relance, ou fermé par Stripe après les relances).";
+"%lld paid" = "%lld payants";
+"%lld card refused" = "%lld carte refusée";
+"%lld cards refused" = "%lld cartes refusées";
+"%lld cancelled" = "%lld annulés";
+"Trials that ended in the last 90 days, one per customer, and the share that paid at least once. Card refused: Stripe could not charge at the end of the trial. Cancelled: the customer stopped the trial." = "Essais terminés ces 90 derniers jours, un par client, et la part qui a payé au moins une fois. Carte refusée : Stripe n'a pas pu débiter à la fin de l'essai. Annulé : le client a arrêté l'essai.";
+"New, upgraded and returning customers, minus the ones who left, whose payment failed or who pay less, over the last 30 days." = "Nouveaux clients, hausses et retours, moins les départs, les impayés et les baisses, sur les 30 derniers jours.";
+"MRR lost to cancellations, failed payments and downgrades in 30 days, against the MRR of 30 days ago." = "MRR perdu en 30 jours (résiliations, impayés, baisses), rapporté au MRR d'il y a 30 jours.";
+"Bars: new, upgraded and returning customers above zero, downgrades, cancellations and failed payments below. Line: the net change." = "Barres : nouveaux, hausses et retours au-dessus de zéro ; baisses, résiliations et impayés en dessous. Ligne : la variation nette.";
+"Mobile apps (RevenueCat)" = "Apps mobiles (RevenueCat)";

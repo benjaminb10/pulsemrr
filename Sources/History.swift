@@ -219,10 +219,16 @@ extension StripeClient {
 
 /// What moved the MRR between two dates, customer by customer, in the display currency.
 struct Movement {
-    var new = 0, expansion = 0, reactivation = 0, contraction = 0, churn = 0
-    var newCustomers = 0, churnedCustomers = 0
+    /// `churn`: customers who cancelled; `failed`: customers whose payment failed (past_due, or closed by Stripe after
+    /// the retries). Both no longer pay; they're told apart because the fixes differ.
+    var new = 0, expansion = 0, reactivation = 0, contraction = 0, churn = 0, failed = 0
+    /// RevenueCat projects: only their MRR's net change is known, not who moved.
+    var outside = 0
+    var newCustomers = 0, churnedCustomers = 0, failedCustomers = 0
     var startMrr = 0, endMrr = 0, startCustomers = 0, endCustomers = 0
-    var net: Int { new + expansion + reactivation - contraction - churn }
+    var gained: Int { new + expansion + reactivation + max(outside, 0) }
+    var lost: Int { contraction + churn + failed + max(-outside, 0) }
+    var net: Int { gained - lost }
 }
 
 /// Everything the dashboard window shows, computed once per refresh, in the display currency.
@@ -240,6 +246,9 @@ struct DashboardData {
     var last30 = Movement()
     var last90 = Movement()
     var trialsEnded = 0
+    /// Of the trials ended in 90 days: closed after a refused payment, and cancelled by the customer.
+    var trialsFailed = 0
+    var trialsCancelled = 0
     var trialConversion: Double?
     var revenue: [Date: [UUID: Int]] = [:]
     var failed: [Failed] = []
@@ -264,11 +273,12 @@ struct DashboardData {
     var growth: Double? { last30.startMrr > 0 ? Double(last30.endMrr - last30.startMrr) / Double(last30.startMrr) : nil }
     /// Paying customers lost in the last 30 days, out of the ones who paid during the window.
     var customerChurn: Double? { churnNow.rate }
-    var revenueChurn: Double? { last30.startMrr > 0 ? Double(last30.churn + last30.contraction) / Double(last30.startMrr) : nil }
+    var revenueChurn: Double? { last30.startMrr > 0 ? Double(last30.lost) / Double(last30.startMrr) : nil }
     /// ARPU divided by the monthly customer churn of the last 90 days.
     var ltv: Int? {
-        guard last90.startCustomers > 0, last90.churnedCustomers > 0 else { return nil }
-        let monthly = Double(last90.churnedCustomers) / Double(last90.startCustomers) / 3
+        let gone = last90.churnedCustomers + last90.failedCustomers
+        guard last90.startCustomers > 0, gone > 0 else { return nil }
+        let monthly = Double(gone) / Double(last90.startCustomers) / 3
         return Int(Double(arpu) / monthly)
     }
 }
@@ -330,7 +340,8 @@ enum Analytics {
         d.last90 = movement(list, now.addingTimeInterval(-90 * day), now)
         // RevenueCat projects count in the MRR and its growth; their customers' moves stay in RevenueCat
         for o in outside.values {
-            d.last30.startMrr += o.at(now.addingTimeInterval(-30 * day)); d.last30.endMrr += o.at(now)
+            let before = o.at(now.addingTimeInterval(-30 * day)), after = o.at(now)
+            d.last30.startMrr += before; d.last30.endMrr += after; d.last30.outside += after - before
             d.last30.endCustomers += o.subscribers
         }
         let full = calendarMonths.dropLast().suffix(3)
@@ -339,6 +350,8 @@ enum Analytics {
         // Trials that ended in the last 90 days, one per customer, and how many of them paid
         let ended = accounts.flatMap { Metrics.endedTrials(facts[$0.id] ?? [], now: now, since: now.addingTimeInterval(-90 * day)) }
         d.trialsEnded = ended.count
+        d.trialsFailed = ended.filter { $0.outcome == .paymentFailed }.count
+        d.trialsCancelled = ended.filter { $0.outcome == .cancelled }.count
         if !ended.isEmpty { d.trialConversion = Double(ended.filter { $0.outcome == .paying }.count) / Double(ended.count) }
 
         for a in accounts {
@@ -419,6 +432,8 @@ enum Analytics {
     private static func movement(_ list: [Item], _ a: Date, _ b: Date) -> Movement {
         let va = values(list, a), vb = values(list, b)
         let paidBefore = Set(list.filter { $0.fact.start < a && $0.fact.paidOnce }.map(\.key))
+        // Customers who stopped paying because a payment failed, not because they cancelled
+        let failedKeys = Set(list.filter { $0.fact.pays(at: a) && ($0.fact.atRisk || $0.fact.cancelReason == "payment_failed") }.map(\.key))
         var m = Movement()
         m.startMrr = va.values.reduce(0, +); m.endMrr = vb.values.reduce(0, +)
         m.startCustomers = va.count; m.endCustomers = vb.count
@@ -427,7 +442,7 @@ enum Analytics {
             if x == 0 {
                 if paidBefore.contains(key) { m.reactivation += y } else { m.new += y; m.newCustomers += 1 }
             } else if y == 0 {
-                m.churn += x; m.churnedCustomers += 1
+                if failedKeys.contains(key) { m.failed += x; m.failedCustomers += 1 } else { m.churn += x; m.churnedCustomers += 1 }
             } else if y > x { m.expansion += y - x } else if x > y { m.contraction += x - y }
         }
         return m

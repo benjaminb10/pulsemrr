@@ -265,5 +265,30 @@ do {
     eq(none.projected, nil, "no projection until a trial has ended")
 }
 
+// MARK: the 30-day bridge: a cancellation and a failed payment are told apart
+
+do {
+    let a = Account(name: "P")
+    let kept = sub("active", paid: at(-90))
+    let fresh = sub("active", monthly: 3000, paid: at(-5))
+    let cancelled = sub("canceled", monthly: 2000, reason: "cancellation_requested", paid: at(-90), endedAt: at(-10))
+    let closedByStripe = sub("canceled", monthly: 1500, reason: "payment_failed", paid: at(-90), endedAt: at(-8))
+    let retrying = sub("past_due", monthly: 700, paid: at(-90))
+    let d = Analytics.build(accounts: [a], all: [a], facts: [a.id: [kept, fresh, cancelled, closedByStripe, retrying]], revenue: [:], failed: [:],
+                            months: 1, convert: { v, _ in v }, now: now)
+    let m = d.last30
+    eq(m.startMrr, 1000 + 2000 + 1500 + 700, "MRR 30 days ago")
+    eq(m.new, 3000, "new"); eq(m.newCustomers, 1, "new customers")
+    eq(m.churn, 2000, "cancelled"); eq(m.churnedCustomers, 1, "cancelled customers")
+    eq(m.failed, 1500 + 700, "failed payments, closed or retrying"); eq(m.failedCustomers, 2, "failed customers")
+    eq(m.endMrr, m.startMrr + m.net, "the bridge adds up")
+    // A RevenueCat project down from 5000 to 3000: its change is a line of its own, and the bridge still adds up
+    let rc = Account(name: "App")
+    let both = Analytics.build(accounts: [a, rc], all: [a, rc], facts: [a.id: [kept, fresh, cancelled, closedByStripe, retrying]], revenue: [:], failed: [:],
+                               months: 1, convert: { v, _ in v }, outside: [rc.id: .init(mrr: [at(-40): 5000, at(-2): 3000], subscribers: 4)], now: now)
+    eq(both.last30.outside, -2000, "RevenueCat change")
+    eq(both.last30.endMrr, both.last30.startMrr + both.last30.net, "the bridge adds up with RevenueCat")
+}
+
 print(failures == 0 ? "ok: \(passed) checks" : "\(failures) failed, \(passed) passed")
 exit(failures == 0 ? 0 : 1)

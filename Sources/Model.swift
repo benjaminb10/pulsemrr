@@ -858,6 +858,11 @@ extension Model {
                 "leaving": convert(s.leaving), "leavingCount": s.leavingCount, "kpiMrr": d.mrr, "customers": d.customers,
                 "churn30": opt(d.customerChurn), "churnTodayCard": opt(d.churn.last?.rate), "trialConversion90": opt(d.trialConversion),
                 "snapReal": convert(s.real), "churnLost": d.churnNow.lost.count, "churnBase": d.churnNow.base.count,
-                "churnFailed": d.churnNow.lost.filter(\.paymentFailed).count, "everPaid": d.everPaid, "lostAllTime": d.lostAllTime]
+                "churnFailed": d.churnNow.lost.filter(\.paymentFailed).count, "everPaid": d.everPaid, "lostAllTime": d.lostAllTime,
+                "bridge": ["start": d.last30.startMrr, "new": d.last30.new, "newCustomers": d.last30.newCustomers, "expansion": d.last30.expansion,
+                           "reactivation": d.last30.reactivation, "contraction": d.last30.contraction, "churn": d.last30.churn,
+                           "churnedCustomers": d.last30.churnedCustomers, "failed": d.last30.failed, "failedCustomers": d.last30.failedCustomers, "outside": d.last30.outside,
+                           "end": d.last30.endMrr],
+                "trials90": ["ended": d.trialsEnded, "failed": d.trialsFailed, "cancelled": d.trialsCancelled]]
     }
 }
