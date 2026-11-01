@@ -75,6 +75,18 @@ def wait_loaded(timeout=180):
         time.sleep(2)
 
 
+def find_radio(name, timeout=60):
+    """The period button: absent for a moment while a project's view reloads."""
+    end = time.time() + timeout
+    while True:
+        radio = next((n for n in snapshot() if n.get("role") == "radiobutton" and n.get("name") == name), None)
+        if radio or time.time() > end:
+            if not radio:
+                raise RuntimeError(f"period {name} not found")
+            return radio
+        time.sleep(2)
+
+
 def sidebar(nodes):
     """Project rows of the sidebar, in order: (label, name shown in the header, node)."""
     rows = []
@@ -175,7 +187,7 @@ def main():
     for _, name, _ in rows:
         click_named(lambda nodes: next(n for _, nm, n in sidebar(nodes) if nm == name))
         for p in period_names:
-            radio = next(n for n in snapshot() if n.get("role") == "radiobutton" and n.get("name") == p)
+            radio = find_radio(p)
             if "checked" not in radio.get("states", []):
                 click(radio["ref_id"])
             nodes = wait_loaded()
