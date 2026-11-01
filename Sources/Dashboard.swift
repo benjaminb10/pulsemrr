@@ -41,6 +41,16 @@ struct DashboardView: View {
                 }
                 .pickerStyle(.segmented)
                 .help("Period shown in the charts")
+                Menu {
+                    Button("Share as image…") { DashboardShare.share(model, .png) }
+                    Button("Share as PDF…") { DashboardShare.share(model, .pdf) }
+                    Divider()
+                    Button("Copy image") { DashboardShare.copyImage(model) }
+                    Button("Save image…") { DashboardShare.save(model, .png) }
+                    Button("Save PDF…") { DashboardShare.save(model, .pdf) }
+                } label: { Label("Share", systemImage: "square.and.arrow.up") }
+                    .disabled(model.dashboardLoading)
+                    .help("Send what this window shows (the project and the period picked) as an image or a PDF")
                 Button { Task { await model.loadDashboard(force: true) } } label: { Label("Refresh", systemImage: "arrow.clockwise") }
                     .disabled(model.dashboardLoading)
                     .help("Read everything again from Stripe")
@@ -139,6 +149,7 @@ struct DashboardSidebar: View {
 struct DashboardContent: View {
     @ObservedObject var model: Model
     @Environment(\.isSnapshot) private var isSnapshot
+    @Environment(\.exportedAt) private var exportedAt
 
     private var d: DashboardData { model.dashboard }
     private var project: Account? { model.dashboardScope.flatMap { id in model.active.first { $0.id == id } } }
@@ -216,7 +227,8 @@ struct DashboardContent: View {
                 Text(project?.name ?? some.map { $0.count <= 2 ? $0.map(\.name).joined(separator: " + ") : Fmt.count($0.count, "%lld project", "%lld projects") } ?? String(localized: "All projects"))
                     .font(.system(size: 24, weight: .bold, design: .rounded)).lineLimit(1)
                 Group {
-                    if isSnapshot { Text("Updated just now") }
+                    if let t = exportedAt { Text(Fmt.date(t, "d MMMM yyyy HH:mm")) + Text(verbatim: " · PulseMRR") }
+                    else if isSnapshot { Text("Updated just now") }
                     else if model.dashboardLoading { Text("Reading Stripe…") }
                     else if let t = model.dashboardUpdated {
                         if Date().timeIntervalSince(t) < 60 { Text("Updated just now") }

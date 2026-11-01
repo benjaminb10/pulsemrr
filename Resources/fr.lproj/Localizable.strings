@@ -344,3 +344,12 @@
 "%lld trials running, %@ of potential MRR." = "%lld essais en cours, %@ de MRR potentiel.";
 "%lld already cancelled." = "%lld déjà annulés.";
 "Ended in the last 90 days (%lld):" = "Terminés ces 90 derniers jours (%lld) :";
+
+/* Share the dashboard (0.9.21) */
+"Share as image…" = "Partager en image…";
+"Share as PDF…" = "Partager en PDF…";
+"Copy image" = "Copier l'image";
+"Save image…" = "Enregistrer l'image…";
+"Save PDF…" = "Enregistrer le PDF…";
+"Send what this window shows (the project and the period picked) as an image or a PDF" = "Envoyer ce que montre la fenêtre (le projet et la période choisis) en image ou en PDF";
+"Share" = "Partager";

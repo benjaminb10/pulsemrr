@@ -108,6 +108,23 @@ struct PulseMRRApp: App {
             while sem.wait(timeout: .now()) == .timedOut { RunLoop.main.run(until: Date().addingTimeInterval(0.05)) }
             exit(0)
         }
+        // `PulseMRR --share-render [project N]`: the Share button's image and PDF of live data, paths printed (for checks).
+        if args.contains("--share-render") {
+            let sem = DispatchSemaphore(value: 0)
+            Task { @MainActor in
+                let m = Model()
+                await m.refreshStats(); await m.loadDashboard()
+                m.persist = false
+                if let j = args.firstIndex(of: "project"), args.count > j + 1, let n = Int(args[j + 1]), m.active.indices.contains(n) { m.dashboardScope = m.active[n].id }
+                m.rebuildDashboard()
+                let t0 = Date()
+                for f in [DashboardShare.Format.png, .pdf] { print(DashboardShare.render(m, f)?.path ?? "render failed") }
+                print(String(format: "%.1f s", Date().timeIntervalSince(t0)))
+                sem.signal()
+            }
+            while sem.wait(timeout: .now()) == .timedOut { RunLoop.main.run(until: Date().addingTimeInterval(0.05)) }
+            exit(0)
+        }
         // `PulseMRR --metrics-dump`: the headline figures of each live project as JSON lines (for checks after a change of formula).
         if args.contains("--metrics-dump") {
             let sem = DispatchSemaphore(value: 0)
