@@ -37,6 +37,5 @@ if [[ ${RECETTE:-1} != 0 ]] && command -v agent-desktop >/dev/null; then
   [[ -d /Applications/PulseMRR.app ]] && osascript -e 'tell application "Finder" to delete POSIX file "/Applications/PulseMRR.app"' >/dev/null
   ditto build/PulseMRR.app /Applications/PulseMRR.app
   open -a /Applications/PulseMRR.app --args --dashboard
-  sleep 12
   if Tests/recette.sh; then echo "Recette OK on $VERSION"; else echo "RECETTE FAILED on $VERSION: see above"; exit 1; fi
 fi

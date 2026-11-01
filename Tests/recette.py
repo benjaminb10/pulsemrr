@@ -107,16 +107,40 @@ def check_view(nodes, expected):
     return problems, values
 
 
+def has_window():
+    try:
+        return any(n.get("role") == "outline" for n in snapshot())
+    except RuntimeError:
+        return False
+
+
+def wait_window(seconds):
+    end = time.time() + seconds
+    while time.time() < end:
+        if has_window():
+            return True
+        time.sleep(2)
+    return False
+
+
+def open_dashboard():
+    """The dashboard window, opened if needed. Right after an install the first launch can come up without its window
+    (macOS still checking the new app): quit it and launch it again once."""
+    if has_window():
+        return True
+    subprocess.run(["open", "-a", "PulseMRR", "--args", "--dashboard"])
+    if wait_window(60):
+        return True
+    subprocess.run(["osascript", "-e", 'tell application id "app.pulsemrr" to quit'])
+    time.sleep(3)
+    subprocess.run(["open", "-a", "PulseMRR", "--args", "--dashboard"])
+    return wait_window(60)
+
+
 def main():
     quick = "--quick" in sys.argv
-    try:
-        ad("list-windows", "--app", "PulseMRR")
-        nodes = snapshot()
-    except Exception:
-        nodes = []
-    if not any(n.get("role") == "outline" for n in nodes):
-        subprocess.run(["open", "-a", "PulseMRR", "--args", "--dashboard"])
-        time.sleep(6)
+    if not open_dashboard():
+        print("FAIL: the dashboard window did not open"); return 1
     nodes = wait_loaded()
 
     # Quiet projects folded away: unfold them for the run
