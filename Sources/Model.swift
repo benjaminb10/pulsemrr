@@ -77,6 +77,7 @@ final class Model: ObservableObject {
     private var timer: Timer?
     private var statsTimer: Timer?
     private var recapTimer: Timer?
+    private var wakeObserver: NSObjectProtocol?
     private var polling = false
     private var customerNames: [String: String] = [:]
 
@@ -223,6 +224,12 @@ final class Model: ObservableObject {
         statsTimer = Timer.scheduledTimer(withTimeInterval: 300, repeats: true) { _ in
             Task { @MainActor in await self.refreshStats() }
         }
+        // Back from sleep: the timers waited too, so read everything at once instead of up to 5 minutes later
+        if wakeObserver == nil {
+            wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { _ in
+                Task { @MainActor in await self.pollAll(); await self.refreshStats() }
+            }
+        }
         // Once a minute: is it time for the daily recap? Also catches up after the Mac wakes from sleep.
         recapTimer?.invalidate()
         recapTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { _ in
@@ -355,7 +362,9 @@ final class Model: ObservableObject {
                 errors[a.id] = error.localizedDescription
             }
         }
-        if dashboardOpen { rebuildDashboard() }
+        // An open dashboard follows on its own: takings, failed invoices and RevenueCat history are read again once
+        // they are 10 minutes old (before, only opening the window or Refresh did, so a window left open went stale)
+        if dashboardOpen { await loadDashboard() }
     }
 
     // MARK: RevenueCat

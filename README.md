@@ -152,6 +152,8 @@ No Xcode project: `build.sh` downloads [Sparkle](https://sparkle-project.org) on
 
 `PulseMRR --demo-snapshot out.png` draws the panel with made-up projects, and `PulseMRR --dashboard-snapshot out.png demo` the dashboard, as in the screenshots above.
 
+Tests: `Tests/run.sh` checks the MRR rules. `Tests/recette.sh` goes through the running app's dashboard window, every project and every period, and checks each view finished reading Stripe and shows its figures (it drives the app through the accessibility tree with [agent-desktop](https://github.com/vercel-labs/agent-desktop), without moving the pointer). Run it after each release.
+
 ## Also by me
 
 - [Encore Screen](https://encorescreen.com): turn an old Mac, iPhone, iPad or Android into a wireless extra screen.
