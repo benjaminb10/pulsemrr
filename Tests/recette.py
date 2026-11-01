@@ -2,16 +2,17 @@
 """Acceptance run of the dashboard window, after a release: every project of the sidebar, every period of the toolbar.
 
 Drives the running PulseMRR through the macOS accessibility tree with agent-desktop (npm i -g agent-desktop), in the
-background: no pointer moves, no focus taken. Each view must show its project's name, finish reading Stripe, have the
-four headline figures with digits in them, and no NaN or error text. The project and period picked before are put back.
+background: no pointer moves, no focus taken. Each view must show its project's name, finish reading Stripe, show its MRR,
+have the 30-day bridge end on that same MRR, and no NaN or error text. The project and period picked before are put back.
 
 Run: Tests/recette.sh            (opens the dashboard if no window is open)
      Tests/recette.sh --quick    (the 1 month period only)
 """
 import json, re, subprocess, sys, time
 
-HEADLINE = [["MRR réel", "Real MRR"], ["MRR net gagné", "Net new MRR"], ["Clients payants", "Paying customers"],
-            ["Revenu par client", "Revenue per customer"]]
+MRR = ("MRR",)
+BRIDGE_START = ("Il y a 30 jours", "30 days ago")
+BRIDGE_END = ("Aujourd'hui", "Today")
 LOADING = ("Lecture de Stripe", "Reading Stripe")
 BAD = re.compile(r"\bNaN\b|\bnan\b|\binf\b|Erreur|Error|\(null\)|Optional\(", re.I)
 PERIOD = re.compile(r"^(1|3|6|12) (mois|months?)$")
@@ -85,17 +86,24 @@ def check_view(nodes, expected):
     bad = [x for x in t if BAD.search(x)]
     if bad:
         problems.append(f"bad text: {bad[:3]}")
-    # The four headline labels follow each other, then their four values
+    # The MRR at the top, and the bridge under it ending on that same MRR
+    values = []
     try:
-        i = next(k for k, x in enumerate(t) if x in HEADLINE[0])
-        labels, values = t[i:i + 4], t[i + 4:i + 8]
-        if [any(l == x for x in names) for l, names in zip(labels, HEADLINE)] != [True] * 4:
-            problems.append(f"headline labels {labels}")
-        elif not all(re.search(r"\d", v) for v in values):
-            problems.append(f"headline values {values}")
+        # After the header ("Updated …"), so the sidebar's own "MRR" column title is skipped
+        h = next(k for k, x in enumerate(t) if x.startswith(("Mis à jour", "Updated")))
+        i = next(k for k in range(h, len(t)) if t[k] in MRR)
+        # The accessibility tree reads row by row: the first amount after the title is the MRR
+        hero = next(x for x in t[i + 1:] if re.search(r"\d", x))
+        values.append(hero)
+        j = next(k for k, x in enumerate(t) if x in BRIDGE_START)
+        start = next(x for x in t[j + 1:] if re.search(r"\d", x))
+        e = next(k for k in range(j, len(t)) if t[k] in BRIDGE_END)
+        end = t[e + 1]
+        values += [start, end]
+        if end != hero:
+            problems.append(f"bridge ends on {end!r}, MRR says {hero!r}")
     except StopIteration:
-        problems.append("no headline cards")
-        values = []
+        problems.append("no MRR or no bridge")
     return problems, values
 
 

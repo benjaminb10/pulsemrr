@@ -328,3 +328,19 @@
 "MRR lost to cancellations, failed payments and downgrades in 30 days, against the MRR of 30 days ago." = "MRR perdu en 30 jours (résiliations, impayés, baisses), rapporté au MRR d'il y a 30 jours.";
 "Bars: new, upgraded and returning customers above zero, downgrades, cancellations and failed payments below. Line: the net change." = "Barres : nouveaux, hausses et retours au-dessus de zéro ; baisses, résiliations et impayés en dessous. Ligne : la variation nette.";
 "Mobile apps (RevenueCat)" = "Apps mobiles (RevenueCat)";
+
+/* Simpler top of the dashboard (0.9.20) */
+"To recover" = "À récupérer";
+"paid" = "payés";
+"%@ to go." = "Encore %@.";
+"No one came or left in 30 days." = "Aucune arrivée ni aucun départ en 30 jours.";
+"%lld new" = "%lld nouveaux";
+"%lld cancelled their plan" = "%lld résiliés";
+"%lld subscription past due, Stripe is still retrying. Not in the MRR." = "%lld abonnement impayé, que Stripe relance encore. Hors MRR.";
+"%lld subscriptions past due, Stripe is still retrying. Not in the MRR." = "%lld abonnements impayés, que Stripe relance encore. Hors MRR.";
+"And %lld customers cancelling (%@ of MRR): they leave at the end of their period." = "Et %lld clients en cours d'annulation (%@ de MRR) : ils partent à la fin de leur période.";
+"The invoices themselves, with a link to each one in Stripe, are in Failed payments further down." = "Les factures, avec un lien vers chacune dans Stripe, sont dans Paiements échoués plus bas.";
+"No trial running." = "Aucun essai en cours.";
+"%lld trials running, %@ of potential MRR." = "%lld essais en cours, %@ de MRR potentiel.";
+"%lld already cancelled." = "%lld déjà annulés.";
+"Ended in the last 90 days (%lld):" = "Terminés ces 90 derniers jours (%lld) :";

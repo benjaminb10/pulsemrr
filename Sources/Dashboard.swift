@@ -163,11 +163,15 @@ struct DashboardContent: View {
     private var filled: some View {
         VStack(alignment: .leading, spacing: 18) {
             header
-            KpiGrid(model: model)
+            // The figure everyone comes for, then the goal (the whole business) or the customers (one project)
+            HStack(alignment: .top, spacing: 18) {
+                MrrHeroCard(model: model)
+                if model.dashboardAll { GoalCard(model: model) } else { PayingCustomersCard(model: model) }
+            }
+            .fixedSize(horizontal: false, vertical: true)
             MrrBridgeCard(model: model)
+            ActionRow(model: model)
             if project == nil { TodayCard(model: model) }
-            // The goal is about the whole business
-            if model.dashboardAll { GoalCard(model: model) }
             ProjectionSection(model: model)
             MrrChartCard(model: model)
             ChurnCard(model: model)
@@ -316,51 +320,6 @@ private struct MoneyAxis: ViewModifier {
 }
 
 // MARK: KPIs
-
-struct KpiGrid: View {
-    @ObservedObject var model: Model
-
-    var body: some View {
-        let d = model.dashboard
-        let m30 = d.last30
-        Grid(horizontalSpacing: 14, verticalSpacing: 14) {
-            GridRow {
-                Kpi(title: String(localized: "Real MRR"), value: Fmt.money(d.mrr, model, compact: false),
-                    note: (d.growth.map { Text(Fmt.signedPercent($0)).foregroundColor(tone($0)) + Text(" ") + Text("in 30 days") + Text("  ·  ") } ?? Text(""))
-                        + Text(verbatim: "ARR ") + Text(Fmt.money(d.mrr * 12, model)),
-                    help: String(localized: "Monthly recurring revenue from active subscriptions, at list price (yearly plans / 12). Failed payments and trials don't count. ARR = MRR × 12."))
-                Kpi(title: String(localized: "Net new MRR"), value: Fmt.signed(m30.net, model),
-                    note: Text(Fmt.signed(m30.gained, model)).foregroundColor(Palette.money) + Text("  ") + Text(Fmt.signed(-m30.lost, model)).foregroundColor(Palette.loss) + Text("  ·  ") + Text("30 days"),
-                    help: String(localized: "New, upgraded and returning customers, minus the ones who left, whose payment failed or who pay less, over the last 30 days."))
-                Kpi(title: String(localized: "Paying customers"), value: "\(d.customers)",
-                    note: Text("+\(m30.newCustomers)").foregroundColor(Palette.money) + Text("  ") + Text("−\(m30.churnedCustomers + m30.failedCustomers)").foregroundColor(Palette.loss) + Text("  ·  ") + Text("30 days"),
-                    help: String(localized: "Customers with at least one paying subscription."))
-                Kpi(title: String(localized: "Revenue per customer"), value: Fmt.money(d.arpu, model, compact: false),
-                    note: Text("a month (ARPU)"),
-                    help: String(localized: "MRR divided by paying customers."))
-            }
-            GridRow {
-                Kpi(title: String(localized: "Customer churn"), value: Fmt.percent(d.customerChurn),
-                    note: Text(String(format: String(localized: "%lld of %lld left in 30 days"), d.churnNow.lost.count, d.churnNow.base.count)),
-                    help: String(localized: "Paying customers lost in the last 30 days, out of the ones who paid at some point in those 30 days. Trials that never paid are not churn."))
-                Kpi(title: String(localized: "Revenue churn"), value: Fmt.percent(d.revenueChurn),
-                    note: Text(Fmt.money(m30.lost, model)) + Text(" ") + Text("lost in 30 days"),
-                    help: String(localized: "MRR lost to cancellations, failed payments and downgrades in 30 days, against the MRR of 30 days ago."))
-                Kpi(title: String(localized: "Lifetime value"), value: d.ltv.map { Fmt.money($0, model) } ?? "–",
-                    note: Text("ARPU ÷ monthly churn"),
-                    help: String(localized: "What a customer brings in over their whole time with you: revenue per customer divided by the monthly customer churn of the last 90 days."))
-                Kpi(title: String(localized: "Trial conversion"), value: Fmt.percent(d.trialConversion, digits: 0),
-                    note: d.trialsEnded == 0 ? Text(Fmt.count(0, "of %lld trial ended in 90 days", "of %lld trials ended in 90 days"))
-                        : Text(Fmt.count(d.trialsEnded - d.trialsFailed - d.trialsCancelled, "%lld paid", "%lld paid")) + Text("  ·  ")
-                            + Text(Fmt.count(d.trialsFailed, "%lld card refused", "%lld cards refused")).foregroundColor(Palette.warn) + Text("  ·  ")
-                            + Text(Fmt.count(d.trialsCancelled, "%lld cancelled", "%lld cancelled")).foregroundColor(Palette.loss),
-                    help: String(localized: "Trials that ended in the last 90 days, one per customer, and the share that paid at least once. Card refused: Stripe could not charge at the end of the trial. Cancelled: the customer stopped the trial."))
-            }
-        }
-    }
-
-    private func tone(_ v: Double) -> Color { v > 0 ? Palette.money : v < 0 ? Palette.loss : .secondary }
-}
 
 struct Kpi: View {
     let title: String
@@ -530,6 +489,147 @@ struct MovementsCard: View {
             .frame(height: 230)
             .help(String(localized: "Bars: new, upgraded and returning customers above zero, downgrades, cancellations and failed payments below. Line: the net change."))
         }
+    }
+}
+
+/// The MRR, large, with its change over 30 days and the ARR.
+struct MrrHeroCard: View {
+    @ObservedObject var model: Model
+
+    var body: some View {
+        let d = model.dashboard, m = d.last30
+        let change = m.endMrr - m.startMrr
+        Card(title: String(localized: "MRR")) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(Fmt.money(d.mrr, model, compact: false)).font(.system(size: 44, weight: .bold, design: .rounded)).monospacedDigit()
+                    .lineLimit(1).minimumScaleFactor(0.6)
+                (Text(Fmt.signed(change, model)).fontWeight(.semibold).foregroundColor(change >= 0 ? Palette.money : Palette.loss)
+                 + (d.growth.map { Text(" (") + Text(Fmt.signedPercent($0)) + Text(")") } ?? Text("")).foregroundColor(change >= 0 ? Palette.money : Palette.loss)
+                 + Text(" ") + Text("in 30 days") + Text("  ·  ") + Text(verbatim: "ARR ") + Text(Fmt.money(d.mrr * 12, model)))
+                    .font(.callout).foregroundStyle(.secondary)
+            }
+        }
+        .help(String(localized: "Monthly recurring revenue from active subscriptions, at list price (yearly plans / 12). Failed payments and trials don't count. ARR = MRR × 12."))
+    }
+}
+
+/// One project: its paying customers, and who came and went in 30 days.
+struct PayingCustomersCard: View {
+    @ObservedObject var model: Model
+
+    var body: some View {
+        let d = model.dashboard, m = d.last30
+        Card(title: String(localized: "Paying customers")) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(verbatim: "\(d.customers)").font(.system(size: 44, weight: .bold, design: .rounded)).monospacedDigit()
+                // Only what happened: "7 new in 30 days", not "7 new, 0 cancelled, 0 failed payments"
+                let parts = [Fmt.count(m.newCustomers, "%lld new", "%lld new"), Fmt.count(m.churnedCustomers, "%lld cancelled their plan", "%lld cancelled their plan"),
+                             Fmt.count(m.failedCustomers, "%lld failed payment", "%lld failed payments")]
+                    .enumerated().filter { [m.newCustomers, m.churnedCustomers, m.failedCustomers][$0.offset] > 0 }.map(\.element)
+                Text(parts.isEmpty ? String(localized: "No one came or left in 30 days.") : parts.joined(separator: ", ") + " " + String(localized: "in 30 days"))
+                    .font(.callout).foregroundStyle(.secondary)
+            }
+        }
+        .help(String(localized: "Customers with at least one paying subscription."))
+    }
+}
+
+/// What to act on: money that can still come back, and where the trials lead.
+struct ActionRow: View {
+    @ObservedObject var model: Model
+
+    var body: some View {
+        let p = model.projection, d = model.dashboard
+        let risk = p.atRisk > 0 || d.cancelling > 0
+        let trials = p.trialCount > 0 || d.trialsEnded > 0
+        if risk || trials {
+            HStack(alignment: .top, spacing: 18) {
+                if risk { RecoverCard(model: model) }
+                if trials { TrialsCard(model: model) }
+            }
+            .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+}
+
+struct RecoverCard: View {
+    @ObservedObject var model: Model
+
+    var body: some View {
+        let p = model.projection, d = model.dashboard
+        // All projects: which ones the money is in
+        let byProject: [(String, Int, Int)] = model.dashboardScope == nil && model.dashboardAccounts.count > 1
+            ? model.dashboardAccounts.compactMap { a in
+                let due = (model.facts[a.id] ?? []).filter(\.atRisk)
+                let sum = due.reduce(0) { $0 + model.convert($1.monthly, $1.currency) }
+                return sum > 0 ? (a.name, sum, due.count) : nil
+            }.sorted { $0.1 > $1.1 }
+            : []
+        Card(title: String(localized: "To recover")) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(Fmt.money(p.atRisk, model, compact: false)).font(.system(size: 30, weight: .bold, design: .rounded)).monospacedDigit()
+                    .foregroundStyle(p.atRisk > 0 ? Palette.failed : .secondary)
+                Text(Fmt.count(p.atRiskCount, "%lld subscription past due, Stripe is still retrying. Not in the MRR.", "%lld subscriptions past due, Stripe is still retrying. Not in the MRR."))
+                    .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                if !byProject.isEmpty {
+                    Text(byProject.map { "\($0.0) \(Fmt.money($0.1, model, compact: false)) (\($0.2))" }.joined(separator: " · "))
+                        .font(.callout).fixedSize(horizontal: false, vertical: true)
+                }
+                if d.cancelling > 0 {
+                    Text(String(format: String(localized: "And %lld customers cancelling (%@ of MRR): they leave at the end of their period."), d.cancelling, Fmt.money(d.cancellingMrr, model, compact: false)))
+                        .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+        .help(String(localized: "The invoices themselves, with a link to each one in Stripe, are in Failed payments further down."))
+    }
+}
+
+struct TrialsCard: View {
+    @ObservedObject var model: Model
+
+    var body: some View {
+        let p = model.projection, d = model.dashboard
+        let paid = d.trialsEnded - d.trialsFailed - d.trialsCancelled
+        Card(title: String(localized: "Trials")) {
+            if let c = d.trialConversion {
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(Fmt.percent(c, digits: 0)).font(.system(size: 20, weight: .semibold, design: .rounded)).monospacedDigit()
+                    Text("paid").font(.caption).foregroundStyle(.secondary)
+                }
+            }
+        } content: {
+            VStack(alignment: .leading, spacing: 10) {
+                Text(p.trialCount == 0 ? String(localized: "No trial running.")
+                     : String(format: String(localized: "%lld trials running, %@ of potential MRR."), p.trialCount, Fmt.money(p.trials, model, compact: false))
+                        + (p.trialsCancelling > 0 ? " " + String(format: String(localized: "%lld already cancelled."), p.trialsCancelling) : ""))
+                    .font(.callout)
+                if d.trialsEnded > 0 {
+                    Text(String(format: String(localized: "Ended in the last 90 days (%lld):"), d.trialsEnded)).font(.callout).foregroundStyle(.secondary)
+                    GeometryReader { g in
+                        HStack(spacing: 2) {
+                            ForEach(Array([(paid, Palette.money), (d.trialsFailed, Palette.warn), (d.trialsCancelled, Palette.loss)].enumerated()), id: \.offset) { _, part in
+                                if part.0 > 0 {
+                                    Rectangle().fill(part.1).frame(width: max(2, (g.size.width - 4) * CGFloat(part.0) / CGFloat(d.trialsEnded)))
+                                }
+                            }
+                        }
+                    }
+                    .frame(height: 12).clipShape(Capsule())
+                    HStack(spacing: 16) {
+                        legend(paid, Fmt.count(paid, "%lld paid", "%lld paid"), Palette.money)
+                        legend(d.trialsFailed, Fmt.count(d.trialsFailed, "%lld card refused", "%lld cards refused"), Palette.warn)
+                        legend(d.trialsCancelled, Fmt.count(d.trialsCancelled, "%lld cancelled", "%lld cancelled"), Palette.loss)
+                    }
+                    .font(.callout)
+                }
+            }
+        }
+        .help(String(localized: "Trials that ended in the last 90 days, one per customer, and the share that paid at least once. Card refused: Stripe could not charge at the end of the trial. Cancelled: the customer stopped the trial."))
+    }
+
+    private func legend(_ n: Int, _ text: String, _ color: Color) -> some View {
+        HStack(spacing: 6) { Circle().fill(color).frame(width: 8, height: 8); Text(text) }
     }
 }
 
@@ -731,7 +831,7 @@ struct GoalCard: View {
         let goal = model.prefs.goal * 100
         Card(title: String(localized: "MRR goal"), subtitle: goal > 0 ? nil : String(localized: "Set a target to see when you'll reach it")) {
             if isSnapshot {
-                Text(goal > 0 ? Fmt.money(goal, model) : "").font(.callout).foregroundStyle(.secondary)
+                EmptyView()
             } else {
                 HStack(spacing: 6) {
                     TextField(String(localized: "Goal"), text: $draft)
@@ -746,20 +846,19 @@ struct GoalCard: View {
                 let share = min(1, Double(d.mrr) / Double(goal))
                 VStack(alignment: .leading, spacing: 10) {
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Text(Fmt.money(d.mrr, model, compact: false)).font(.system(size: 22, weight: .semibold, design: .rounded)).monospacedDigit()
-                        Text(String(localized: "of") + " " + Fmt.money(goal, model, compact: false)).foregroundStyle(.secondary)
-                        Text(Fmt.percent(share, digits: 0)).fontWeight(.semibold).foregroundStyle(Palette.brand).monospacedDigit()
-                        Spacer(minLength: 12)
-                        Text(eta(d, goal)).font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.trailing)
+                        Text(Fmt.money(goal, model, compact: false)).font(.system(size: 30, weight: .bold, design: .rounded)).monospacedDigit()
+                        Spacer(minLength: 8)
+                        Text(Fmt.percent(share, digits: 0)).font(.title3.weight(.semibold)).foregroundStyle(Palette.brand).monospacedDigit()
                     }
                     GeometryReader { geo in
                         ZStack(alignment: .leading) {
                             Capsule().fill(Palette.line)
-                            Capsule().fill(LinearGradient(colors: [Palette.brand, Palette.mint], startPoint: .leading, endPoint: .trailing))
-                                .frame(width: max(8, geo.size.width * share))
+                            Capsule().fill(Palette.brand).frame(width: max(8, geo.size.width * share))
                         }
                     }
                     .frame(height: 10)
+                    Text((d.mrr < goal ? String(format: String(localized: "%@ to go."), Fmt.money(goal - d.mrr, model, compact: false)) + " " : "") + eta(d, goal))
+                        .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
             } else {
                 Text("Type a monthly revenue target, for example 10000, and press Return.").font(.callout).foregroundStyle(.secondary)
@@ -915,7 +1014,7 @@ struct ProjectsCard: View {
             Grid(alignment: .trailing, horizontalSpacing: 16, verticalSpacing: 0) {
                 GridRow {
                     Text("Project").gridColumnAlignment(.leading)
-                    Text("MRR"); Text("30 days"); Text("Customers"); Text("ARPU"); Text("Churn")
+                    Text("MRR"); Text("30 days"); Text("Customers"); Text("Churn")
                 }
                 .font(.caption.weight(.medium)).foregroundStyle(.secondary)
                 .padding(.bottom, 6)
@@ -934,7 +1033,6 @@ struct ProjectsCard: View {
                             Text(r.growth.map(Fmt.signedPercent) ?? "–")
                                 .foregroundStyle(r.growth.map { $0 > 0 ? Palette.money : $0 < 0 ? Palette.loss : .secondary } ?? .secondary)
                             Text("\(r.customers)")
-                            Text(Fmt.money(r.arpu, model)).foregroundStyle(.secondary)
                             Text(Fmt.percent(r.churn)).foregroundStyle(.secondary)
                         }
                         .font(.callout).monospacedDigit()
@@ -1028,12 +1126,8 @@ struct ProjectionSection: View {
                             : (p.rate.map { String(format: String(localized: "%@ of %@ in trial, rate by trial age"), Fmt.percent($0, digits: 0), Fmt.money(p.trials, model)) } ?? String(localized: "No trial running"))
                                 + "\n" + String(format: String(localized: "If every trial pays: %@"), Fmt.money(p.real + p.trials, model)),
                          tint: Palette.brand)
-                HStack(spacing: 14) {
-                    SideStat(title: String(localized: "In trial"), value: Fmt.money(p.trials, model),
-                             note: Fmt.count(p.trialCount, "%lld trial", "%lld trials") + (p.trialsCancelling > 0 ? " · " + String(format: String(localized: "%lld being cancelled"), p.trialsCancelling) : ""))
-                    SideStat(title: String(localized: "At risk"), value: Fmt.money(p.atRisk, model),
-                             note: Fmt.count(p.atRiskCount, "%lld payment past due, not in the MRR", "%lld payments past due, not in the MRR"), tint: p.atRisk > 0 ? Palette.warn : nil)
-                }
+                SideStat(title: String(localized: "In trial"), value: Fmt.money(p.trials, model),
+                         note: Fmt.count(p.trialCount, "%lld trial", "%lld trials") + (p.trialsCancelling > 0 ? " · " + String(format: String(localized: "%lld being cancelled"), p.trialsCancelling) : ""))
                 EndedTrialsCard(model: model, p: p)
             }
             .frame(width: 320)
