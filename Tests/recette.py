@@ -122,15 +122,15 @@ def main():
     period_names = [n["name"] for n in periods]
     if quick:
         period_names = period_names[:1]
-    first_project = next((label for label, _, n in rows if "selected" in n.get("states", [])), rows[0][0])
+    first_project = next((nm for _, nm, n in rows if "selected" in n.get("states", [])), rows[0][1])
     first_period = next((n["name"] for n in periods if "checked" in n.get("states", [])), None)
     if not rows or not period_names:
         print("FAIL: sidebar or period picker not found"); return 1
 
     failures, done = [], 0
     print(f"{len(rows)} projects × {len(period_names)} periods\n")
-    for label, name, _ in rows:
-        row = next(n for l, _, n in sidebar(snapshot()) if l == label)
+    for _, name, _ in rows:
+        row = next(n for _, nm, n in sidebar(snapshot()) if nm == name)
         click(row["ref_id"])
         for p in period_names:
             radio = next(n for n in snapshot() if n.get("role") == "radiobutton" and n.get("name") == p)
@@ -149,7 +149,7 @@ def main():
 
     # Back to what was picked before the run
     try:
-        row = next(n for l, _, n in sidebar(snapshot()) if l == first_project)
+        row = next(n for _, nm, n in sidebar(snapshot()) if nm == first_project)
         click(row["ref_id"])
         if first_period:
             radio = next(n for n in snapshot() if n.get("role") == "radiobutton" and n.get("name") == first_period)
