@@ -4,10 +4,10 @@
     <title>PulseMRR</title>
     <link>https://github.com/benjaminb10/pulsemrr</link>
     <item>
-      <title>PulseMRR 0.9.22</title>
-      <pubDate>Tue, 03 Nov 2026 00:56:59 +0000</pubDate>
-      <sparkle:version>73</sparkle:version>
-      <sparkle:shortVersionString>0.9.22</sparkle:shortVersionString>
+      <title>PulseMRR 0.9.23</title>
+      <pubDate>Tue, 03 Nov 2026 04:24:26 +0000</pubDate>
+      <sparkle:version>75</sparkle:version>
+      <sparkle:shortVersionString>0.9.23</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
       <description><![CDATA[
 <style>
@@ -19,11 +19,10 @@
   a { color: #594FE0; }
 </style>
 <ul dir="auto">
-<li><strong>Unpaid subscriptions</strong>: when Stripe stops retrying and marks a subscription unpaid instead of cancelling it, PulseMRR counts it as a failed payment, not a cancellation, from the period it didn't pay. It shows in <strong>To recover</strong> for 90 days, since its invoice can still be paid; paid later, it's the same customer, never counted as new.</li>
-<li><strong>Card checks</strong>: an authorization made at a trial's start and released right away no longer shows as a sale followed by a refund.</li>
+<li><strong>Real MRR only</strong>: the MRR counts what a paid invoice covers right now. An active subscription with nothing paid for its current period is out: one that never paid (a free period after the trial, a 100% coupon) is read as a trial until its first charge; a renewal not paid yet is at risk; a free month for a paying customer leaves the MRR for that month.</li>
 </ul>
       ]]></description>
-      <enclosure url="https://github.com/benjaminb10/pulsemrr/releases/download/v0.9.22/PulseMRR.dmg" type="application/octet-stream" sparkle:edSignature="ZCv+a6tgPvRPtxbvsiqAC8PPyLiN1nf4di/wbxZSMery7xlcGGulIoaCGn3FTFuQIn5gxzfyxYQc2FtfQsVoAg==" length="4096816" />
+      <enclosure url="https://github.com/benjaminb10/pulsemrr/releases/download/v0.9.23/PulseMRR.dmg" type="application/octet-stream" sparkle:edSignature="z26Wzrxv3J1l0y43R2pQN7KcIyD0rrR28tJsMDUmv5JK67ig0JVzoTMWlt3JuEdZMf2nU1x2ky+PPaWI9wi0Dw==" length="4101355" />
     </item>
   </channel>
 </rss>
