@@ -582,7 +582,7 @@ struct RecoverCard: View {
             VStack(alignment: .leading, spacing: 8) {
                 Text(Fmt.money(p.atRisk, model, compact: false)).font(.system(size: 30, weight: .bold, design: .rounded)).monospacedDigit()
                     .foregroundStyle(p.atRisk > 0 ? Palette.failed : .secondary)
-                Text(Fmt.count(p.atRiskCount, "%lld subscription past due, Stripe is still retrying. Not in the MRR.", "%lld subscriptions past due, Stripe is still retrying. Not in the MRR."))
+                Text(Fmt.count(p.atRiskCount, "%lld unpaid subscription: Stripe is retrying, or its invoice is still open. Not in the MRR.", "%lld unpaid subscriptions: Stripe is retrying, or their invoices are still open. Not in the MRR."))
                     .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 if !byProject.isEmpty {
                     Text(byProject.map { "\($0.0) \(Fmt.money($0.1, model, compact: false)) (\($0.2))" }.joined(separator: " · "))

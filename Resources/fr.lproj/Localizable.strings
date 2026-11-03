@@ -332,8 +332,8 @@
 "No one came or left in 30 days." = "Aucune arrivée ni aucun départ en 30 jours.";
 "%lld new" = "%lld nouveaux";
 "%lld cancelled their plan" = "%lld résiliés";
-"%lld subscription past due, Stripe is still retrying. Not in the MRR." = "%lld abonnement impayé, que Stripe relance encore. Hors MRR.";
-"%lld subscriptions past due, Stripe is still retrying. Not in the MRR." = "%lld abonnements impayés, que Stripe relance encore. Hors MRR.";
+"%lld unpaid subscription: Stripe is retrying, or its invoice is still open. Not in the MRR." = "%lld abonnement impayé : Stripe le relance, ou sa facture reste ouverte. Hors MRR.";
+"%lld unpaid subscriptions: Stripe is retrying, or their invoices are still open. Not in the MRR." = "%lld abonnements impayés : Stripe les relance, ou leurs factures restent ouvertes. Hors MRR.";
 "And %lld customers cancelling (%@ of MRR): they leave at the end of their period." = "Et %lld clients en cours d'annulation (%@ de MRR) : ils partent à la fin de leur période.";
 "The invoices themselves, with a link to each one in Stripe, are in Failed payments further down." = "Les factures, avec un lien vers chacune dans Stripe, sont dans Paiements échoués plus bas.";
 "No trial running." = "Aucun essai en cours.";

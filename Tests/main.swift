@@ -308,14 +308,17 @@ do {
     check(active.isActive && active.end == nil && !active.paymentFailed, "active: in the real MRR, no end")
     check(pastDue.atRisk && !pastDue.isActive, "past_due: at risk, out of the real MRR")
     eq(pastDue.end, t(9000), "past_due stops counting at current_period_start")
-    check(!unpaid.isActive && !unpaid.atRisk, "unpaid: neither real MRR nor at risk")
+    check(!unpaid.isActive, "unpaid: out of the real MRR")
+    var recent = raw("unpaid", id: "u"); recent["current_period_start"] = Int(at(-20).timeIntervalSince1970)
+    check(StripeClient.fact(recent, firstPaid: paid, now: now)!.atRisk, "unpaid for 20 days: to recover, its invoice can still be paid")
+    check(!StripeClient.fact(recent, firstPaid: paid, now: at(100))!.atRisk, "unpaid for 120 days: no longer to recover")
     eq(unpaid.end, t(9000), "unpaid has no ended_at: lost at current_period_start, the period it didn't pay, not today")
     eq(StripeClient.fact(raw("unpaid", id: "u"), firstPaid: paid, now: at(30))!.end, t(9000), "unpaid's end doesn't move with the days")
     check(unpaid.paymentFailed && closed.paymentFailed && pastDue.paymentFailed, "unpaid, past_due and closed by Stripe are failed payments")
     check(!sub("canceled", reason: "cancellation_requested", paid: at(-90), endedAt: at(-3)).paymentFailed, "a cancellation is not a failed payment")
     let snap = MrrSnapshot.from([active, pastDue, unpaid, closed], now: now)
     eq(snap.real["eur"], 1000, "real MRR: active only")
-    eq(snap.atRisk["eur"], 1000, "at risk: the past_due one"); eq(snap.atRiskCount, 1, "one at risk (unpaid is out)")
+    eq(snap.atRisk["eur"], 1000, "at risk: the past_due one (this unpaid one's period is years old)"); eq(snap.atRiskCount, 1, "one at risk")
 
     // Paid later: unpaid back to active is the same customer, paying all along, never lost and never new
     let back = StripeClient.fact(raw("active", id: "u"), firstPaid: paid, now: now)!

@@ -40,11 +40,14 @@ struct SubFact: Codable, Hashable {
     var invoicesRead: Bool? = nil
     /// Active, but its latest invoice is lost: uncollectible, or open after a failed charge with no retry left.
     var lastInvoiceLost: Bool? = nil
+    /// Unpaid, and the period it didn't pay began less than 90 days ago: its open invoice can still be paid.
+    var unpaidRecent: Bool? = nil
 
     /// Active and its latest invoice not lost: counts in the real MRR.
     var isActive: Bool { status == "active" && lastInvoiceLost != true }
-    /// Payment failed: past_due, or active with a lost latest invoice. At risk, out of the real MRR.
-    var atRisk: Bool { status == "past_due" || (status == "active" && lastInvoiceLost == true) }
+    /// Payment failed and the money can still come: past_due, active with a lost latest invoice, or unpaid (Stripe
+    /// stopped retrying but the invoice stays open) for 90 days after the period it didn't pay. Out of the real MRR.
+    var atRisk: Bool { status == "past_due" || (status == "active" && lastInvoiceLost == true) || (status == "unpaid" && unpaidRecent == true) }
     /// Stopped paying because a charge failed, not because the customer cancelled: at risk, unpaid (Stripe gave up
     /// but kept it open, no ended_at), or cancelled by Stripe after the retries.
     var paymentFailed: Bool { atRisk || status == "unpaid" || cancelReason == "payment_failed" }
@@ -155,7 +158,8 @@ extension StripeClient {
                        cancelAt: date(s["cancel_at"]) ?? (s["cancel_at_period_end"] as? Bool == true ? periodEnd : nil),
                        trialStart: date(s["trial_start"]), endedAt: endedAt, cancelAtPeriodEnd: s["cancel_at_period_end"] as? Bool == true,
                        cancelReason: (s["cancellation_details"] as? [String: Any])?["reason"] as? String,
-                       firstPaid: firstPaid?[id], invoicesRead: firstPaid != nil ? true : nil, lastInvoiceLost: lost ? true : nil)
+                       firstPaid: firstPaid?[id], invoicesRead: firstPaid != nil ? true : nil, lastInvoiceLost: lost ? true : nil,
+                       unpaidRecent: status == "unpaid" && (periodStart ?? started) > now.addingTimeInterval(-90 * 86400) ? true : nil)
     }
 
     /// A latest invoice Stripe gave up on: uncollectible, or open after a failed charge with no retry planned.
