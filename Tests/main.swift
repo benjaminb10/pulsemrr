@@ -318,6 +318,9 @@ do {
         return s
     }
     let paid: [String: Date] = ["a": t(2000), "pd": t(2000), "u": t(2000), "c": t(2000)]
+    var refused = raw("canceled", id: "r", reason: "cancellation_requested", endedAt: 1000)
+    refused["cancellation_details"] = ["reason": "cancellation_requested", "comment": "trial_card_check_failed"]
+    check(StripeClient.fact(refused, firstPaid: paid, now: now) == nil, "a trial refused by the card check never started: left out")
     let active = StripeClient.fact(raw("active", id: "a"), firstPaid: paid, now: now)!
     let pastDue = StripeClient.fact(raw("past_due", id: "pd"), firstPaid: paid, now: now)!
     let unpaid = StripeClient.fact(raw("unpaid", id: "u"), firstPaid: paid, now: now)!

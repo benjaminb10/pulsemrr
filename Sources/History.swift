@@ -121,6 +121,10 @@ extension StripeClient {
         let cus = s["customer"] as? [String: Any]
         guard cus?["deleted"] as? Bool != true else { return nil }
         guard let top = monthlyValue(s).max(by: { $0.value < $1.value }), top.value > 0 else { return nil }
+        // A trial refused by the card check at its start (Viewlify's convention) never started: no trial, no failure
+        let details = s["cancellation_details"] as? [String: Any]
+        if details?["comment"] as? String == "trial_card_check_failed" || (s["metadata"] as? [String: Any])?["card_check"] as? String == "failed",
+           status == "canceled" { return nil }
         func date(_ v: Any?) -> Date? { (v as? Int).map { Date(timeIntervalSince1970: TimeInterval($0)) } }
         let id = s["id"] as? String ?? ""
         let items = (s["items"] as? [String: Any])?["data"] as? [[String: Any]] ?? []
