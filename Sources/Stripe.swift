@@ -98,7 +98,8 @@ struct StripeClient {
         let start = cal.date(byAdding: .day, value: -(days - 1), to: cal.startOfDay(for: Date()))!
         let charges = try await list("charges", [("created[gte]", String(Int(start.timeIntervalSince1970)))], max: max)
         var out: [Date: [String: Int]] = [:]
-        for c in charges where (c["paid"] as? Bool) == true && (c["status"] as? String) == "succeeded" {
+        // A card check (authorized then released, never captured) is no money taken
+        for c in charges where (c["paid"] as? Bool) == true && (c["status"] as? String) == "succeeded" && (c["captured"] as? Bool) != false {
             let day = cal.startOfDay(for: Date(timeIntervalSince1970: TimeInterval(c["created"] as? Int ?? 0)))
             let cur = c["currency"] as? String ?? "eur"
             out[day, default: [:]][cur, default: 0] += (c["amount"] as? Int ?? 0) - (c["amount_refunded"] as? Int ?? 0)
@@ -312,6 +313,8 @@ struct Activity: Identifiable, Codable, Hashable {
             let qty = items.first?["quantity"] as? Int ?? 1
             return ((price["unit_amount"] as? Int).map { $0 * qty }, price["currency"] as? String)
         }
+        // A card check (authorized at a trial's start, then released): no sale, and its release is no refund
+        if type.hasPrefix("charge."), type != "charge.dispute.created", o["captured"] as? Bool == false { return nil }
         switch type {
         case "charge.succeeded":
             let billing = o["billing_details"] as? [String: Any]

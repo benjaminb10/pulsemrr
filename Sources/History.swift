@@ -45,6 +45,9 @@ struct SubFact: Codable, Hashable {
     var isActive: Bool { status == "active" && lastInvoiceLost != true }
     /// Payment failed: past_due, or active with a lost latest invoice. At risk, out of the real MRR.
     var atRisk: Bool { status == "past_due" || (status == "active" && lastInvoiceLost == true) }
+    /// Stopped paying because a charge failed, not because the customer cancelled: at risk, unpaid (Stripe gave up
+    /// but kept it open, no ended_at), or cancelled by Stripe after the retries.
+    var paymentFailed: Bool { atRisk || status == "unpaid" || cancelReason == "payment_failed" }
 
     func pays(at t: Date) -> Bool { start <= t && (end.map { t < $0 } ?? true) }
     /// Has a paid invoice with money in it.
@@ -433,7 +436,7 @@ enum Analytics {
         let va = values(list, a), vb = values(list, b)
         let paidBefore = Set(list.filter { $0.fact.start < a && $0.fact.paidOnce }.map(\.key))
         // Customers who stopped paying because a payment failed, not because they cancelled
-        let failedKeys = Set(list.filter { $0.fact.pays(at: a) && ($0.fact.atRisk || $0.fact.cancelReason == "payment_failed") }.map(\.key))
+        let failedKeys = Set(list.filter { $0.fact.pays(at: a) && $0.fact.paymentFailed }.map(\.key))
         var m = Movement()
         m.startMrr = va.values.reduce(0, +); m.endMrr = vb.values.reduce(0, +)
         m.startCustomers = va.count; m.endCustomers = vb.count

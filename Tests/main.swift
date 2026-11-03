@@ -290,5 +290,67 @@ do {
     eq(both.last30.endMrr, both.last30.startMrr + both.last30.net, "the bridge adds up with RevenueCat")
 }
 
+// MARK: failed payments: past_due, unpaid (Stripe gave up but kept it open), back to active, closed by Stripe
+
+do {
+    func raw(_ status: String, id: String, reason: String? = nil, endedAt: Int? = nil) -> [String: Any] {
+        var s: [String: Any] = ["id": id, "status": status, "customer": "cus_" + id, "start_date": 1000, "current_period_start": 9000,
+                                "items": ["data": [["price": ["unit_amount": 1000, "currency": "eur", "recurring": ["interval": "month"]]]]]]
+        if let reason { s["cancellation_details"] = ["reason": reason]; s["canceled_at"] = endedAt }
+        if let endedAt { s["ended_at"] = endedAt }
+        return s
+    }
+    let paid: [String: Date] = ["a": t(2000), "pd": t(2000), "u": t(2000), "c": t(2000)]
+    let active = StripeClient.fact(raw("active", id: "a"), firstPaid: paid, now: now)!
+    let pastDue = StripeClient.fact(raw("past_due", id: "pd"), firstPaid: paid, now: now)!
+    let unpaid = StripeClient.fact(raw("unpaid", id: "u"), firstPaid: paid, now: now)!
+    let closed = StripeClient.fact(raw("canceled", id: "c", reason: "payment_failed", endedAt: 9500), firstPaid: paid, now: now)!
+    check(active.isActive && active.end == nil && !active.paymentFailed, "active: in the real MRR, no end")
+    check(pastDue.atRisk && !pastDue.isActive, "past_due: at risk, out of the real MRR")
+    eq(pastDue.end, t(9000), "past_due stops counting at current_period_start")
+    check(!unpaid.isActive && !unpaid.atRisk, "unpaid: neither real MRR nor at risk")
+    eq(unpaid.end, t(9000), "unpaid has no ended_at: lost at current_period_start, the period it didn't pay, not today")
+    eq(StripeClient.fact(raw("unpaid", id: "u"), firstPaid: paid, now: at(30))!.end, t(9000), "unpaid's end doesn't move with the days")
+    check(unpaid.paymentFailed && closed.paymentFailed && pastDue.paymentFailed, "unpaid, past_due and closed by Stripe are failed payments")
+    check(!sub("canceled", reason: "cancellation_requested", paid: at(-90), endedAt: at(-3)).paymentFailed, "a cancellation is not a failed payment")
+    let snap = MrrSnapshot.from([active, pastDue, unpaid, closed], now: now)
+    eq(snap.real["eur"], 1000, "real MRR: active only")
+    eq(snap.atRisk["eur"], 1000, "at risk: the past_due one"); eq(snap.atRiskCount, 1, "one at risk (unpaid is out)")
+
+    // Paid later: unpaid back to active is the same customer, paying all along, never lost and never new
+    let back = StripeClient.fact(raw("active", id: "u"), firstPaid: paid, now: now)!
+    check(back.isActive && back.end == nil && back.start == t(2000), "unpaid then active: counts from its first payment, no gap")
+
+    // The bridge: an unpaid one is a failed payment, not a cancellation; once paid it moves nothing
+    let a = Account(name: "P")
+    let left = sub("unpaid", monthly: 2000, paid: at(-90))
+    let quit = sub("canceled", monthly: 500, reason: "cancellation_requested", paid: at(-90), endedAt: at(-4))
+    let m = Analytics.build(accounts: [a], all: [a], facts: [a.id: [left, quit]], revenue: [:], failed: [:],
+                            months: 1, convert: { v, _ in v }, now: now).last30
+    eq(m.failed, 2000, "unpaid: lost to a failed payment"); eq(m.failedCustomers, 1, "one failed customer")
+    eq(m.churn, 500, "only the real cancellation is churn"); eq(m.churnedCustomers, 1, "one cancelled customer")
+    let again = sub("active", monthly: 2000, paid: at(-90))
+    let m2 = Analytics.build(accounts: [a], all: [a], facts: [a.id: [again, quit]], revenue: [:], failed: [:],
+                             months: 1, convert: { v, _ in v }, now: now).last30
+    eq(m2.failed, 0, "paid again: off the failed payments"); eq(m2.new + m2.reactivation, 0, "paid again: not a new customer")
+    let lost = Metrics.payingCustomers([("k", left)], now: now)
+    check(lost.first?.paymentFailed == true, "an unpaid customer left on a failed payment")
+
+    // Notifications
+    let acc = UUID()
+    func event(_ type: String, _ o: [String: Any], prev: [String: Any] = [:]) -> Activity? {
+        Activity.from(["id": "evt", "type": type, "created": 1000, "livemode": true, "data": ["object": o, "previous_attributes": prev]], account: acc)
+    }
+    let subObj: [String: Any] = ["id": "sub_u", "customer": "cus_u", "status": "unpaid", "cancel_at_period_end": false]
+    check(event("customer.subscription.updated", subObj, prev: ["status": "past_due"]) == nil, "past_due to unpaid: no cancellation notification")
+    var reactivated = subObj; reactivated["status"] = "active"
+    check(event("customer.subscription.updated", reactivated, prev: ["status": "unpaid"]) == nil, "unpaid to active: no new customer notification")
+    let check0: [String: Any] = ["id": "ch_1", "amount": 1990, "currency": "eur", "captured": false, "amount_refunded": 1990]
+    check(event("charge.succeeded", check0) == nil, "card check authorized: no sale")
+    check(event("charge.refunded", check0) == nil, "card check released: no refund")
+    var real = check0; real["captured"] = true
+    eq(event("charge.succeeded", real)?.kind, .sale, "a captured charge is a sale")
+}
+
 print(failures == 0 ? "ok: \(passed) checks" : "\(failures) failed, \(passed) passed")
 exit(failures == 0 ? 0 : 1)

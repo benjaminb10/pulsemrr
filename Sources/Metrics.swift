@@ -22,7 +22,7 @@ struct PayingCustomer {
     let lastEnded: SubFact?
     /// The amount lost, in whatever unit the caller gave (minor units of the display currency for the dashboard).
     let lostMrr: Int
-    var paymentFailed: Bool { lastEnded?.cancelReason == "payment_failed" }
+    var paymentFailed: Bool { lastEnded?.paymentFailed == true }
 }
 
 struct Churn30 {
