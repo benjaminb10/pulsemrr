@@ -4,10 +4,10 @@
     <title>PulseMRR</title>
     <link>https://github.com/benjaminb10/pulsemrr</link>
     <item>
-      <title>PulseMRR 0.9.21</title>
-      <pubDate>Sun, 01 Nov 2026 14:29:32 +0000</pubDate>
-      <sparkle:version>69</sparkle:version>
-      <sparkle:shortVersionString>0.9.21</sparkle:shortVersionString>
+      <title>PulseMRR 0.9.22</title>
+      <pubDate>Tue, 03 Nov 2026 00:56:59 +0000</pubDate>
+      <sparkle:version>73</sparkle:version>
+      <sparkle:shortVersionString>0.9.22</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
       <description><![CDATA[
 <style>
@@ -19,12 +19,11 @@
   a { color: #594FE0; }
 </style>
 <ul dir="auto">
-<li><strong>Share</strong>: a new button in the dashboard toolbar exports what you're looking at (one project or all, the chosen period) as an image or a PDF, dated, ready to send to a partner. Share, copy or save.</li>
-<li><strong>MRR bridge</strong>: the first and last bars now read "MRR 30 days ago" and "MRR today".</li>
-<li><strong>MRR movements</strong> and <strong>Revenue collected</strong> headline the last 30 days instead of the calendar month, so they no longer show 0 on the 1st.</li>
+<li><strong>Unpaid subscriptions</strong>: when Stripe stops retrying and marks a subscription unpaid instead of cancelling it, PulseMRR counts it as a failed payment, not a cancellation, from the period it didn't pay. It shows in <strong>To recover</strong> for 90 days, since its invoice can still be paid; paid later, it's the same customer, never counted as new.</li>
+<li><strong>Card checks</strong>: an authorization made at a trial's start and released right away no longer shows as a sale followed by a refund.</li>
 </ul>
       ]]></description>
-      <enclosure url="https://github.com/benjaminb10/pulsemrr/releases/download/v0.9.21/PulseMRR.dmg" type="application/octet-stream" sparkle:edSignature="Pz3dKATPF8gC1SuYOhdXzEYHySlw9BohotLHc3Qr3vpialRITNXyil3Asn+leDVO6jhFxJi41v/r/3tjzO8MCQ==" length="4095351" />
+      <enclosure url="https://github.com/benjaminb10/pulsemrr/releases/download/v0.9.22/PulseMRR.dmg" type="application/octet-stream" sparkle:edSignature="ZCv+a6tgPvRPtxbvsiqAC8PPyLiN1nf4di/wbxZSMery7xlcGGulIoaCGn3FTFuQIn5gxzfyxYQc2FtfQsVoAg==" length="4096816" />
     </item>
   </channel>
 </rss>
