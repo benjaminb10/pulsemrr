@@ -225,7 +225,24 @@ do {
     check(lost.atRisk && !lost.isActive, "uncollectible latest invoice: at risk")
     eq(lost.end, t(9000), "stops counting at the unpaid period, like a past_due")
     check(StripeClient.fact(raw(["status": "open", "attempt_count": 4]), firstPaid: [:], now: now)!.atRisk, "open, failed, no retry left: at risk")
-    check(StripeClient.fact(raw(["status": "open", "attempt_count": 1, "next_payment_attempt": 99999]), firstPaid: [:], now: now)!.isActive, "open with a retry planned: still active")
+    let retrying = StripeClient.fact(raw(["status": "open", "attempt_count": 1, "next_payment_attempt": 99999, "amount_due": 9900]), firstPaid: ["sub_l": t(2000)], now: now)!
+    check(retrying.atRisk && !retrying.isActive, "renewal open, retry planned: at risk, no paid invoice covers the period")
+
+    // The real MRR is what a paid invoice covers now
+    let paidNow = StripeClient.fact(raw(["status": "paid", "amount_paid": 9900]), firstPaid: ["sub_l": t(2000)], now: now)!
+    check(paidNow.isActive, "current period paid: real MRR")
+    var withEnd = raw(["status": "paid", "amount_paid": 0, "amount_due": 0])
+    var items = withEnd["items"] as! [String: Any]; var data = items["data"] as! [[String: Any]]
+    data[0]["current_period_end"] = Int(at(20).timeIntervalSince1970); items["data"] = data; withEnd["items"] = items
+    let free = StripeClient.fact(withEnd, firstPaid: [:], now: now)!
+    check(!free.isActive && free.status == "trialing" && free.freePeriod == true, "never paid, free period after the trial: read as a trial")
+    eq(free.trialEnd, at(20), "its first charge is at the end of the free period")
+    check(!free.pays(at: now) && free.pays(at: at(21)), "out of the real MRR until its first charge")
+    let snapFree = MrrSnapshot.from([free, paidNow], now: now)
+    eq(snapFree.real["eur"], 9900, "real MRR: the paid one only"); eq(snapFree.trialCount, 1, "the free period counts with the trials")
+    let coupon = StripeClient.fact(withEnd, firstPaid: ["sub_l": t(2000)], now: now)!
+    check(!coupon.isActive && !coupon.atRisk, "paid before, free month now: out of the real MRR, nothing to recover")
+    eq(coupon.end, t(9000), "stops counting at the free month's start")
     check(StripeClient.fact(raw("in_123" as Any as? [String: Any]), firstPaid: [:], now: now)!.isActive, "latest invoice not expanded: active")
     let never = StripeClient.fact(raw(["status": "uncollectible"]), firstPaid: [:], now: now)!
     check(!never.paidOnce && !never.pays(at: t(5000)), "never paid and lost: never counts, not a paying customer")

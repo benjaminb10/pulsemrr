@@ -40,11 +40,16 @@ struct SubFact: Codable, Hashable {
     var invoicesRead: Bool? = nil
     /// Active, but its latest invoice is lost: uncollectible, or open after a failed charge with no retry left.
     var lastInvoiceLost: Bool? = nil
+    /// Active, and no paid invoice covers its current period although it paid before (a free month on a coupon):
+    /// out of the real MRR. One that never paid is read as a trial instead, see `fact`.
+    var periodUnpaid: Bool? = nil
+    /// Active in Stripe but never paid, its first charge at the end of a free period: read as a trial until then.
+    var freePeriod: Bool? = nil
     /// Unpaid, and the period it didn't pay began less than 90 days ago: its open invoice can still be paid.
     var unpaidRecent: Bool? = nil
 
     /// Active and its latest invoice not lost: counts in the real MRR.
-    var isActive: Bool { status == "active" && lastInvoiceLost != true }
+    var isActive: Bool { status == "active" && lastInvoiceLost != true && periodUnpaid != true }
     /// Payment failed and the money can still come: past_due, active with a lost latest invoice, or unpaid (Stripe
     /// stopped retrying but the invoice stays open) for 90 days after the period it didn't pay. Out of the real MRR.
     var atRisk: Bool { status == "past_due" || (status == "active" && lastInvoiceLost == true) || (status == "unpaid" && unpaidRecent == true) }
@@ -111,7 +116,7 @@ extension StripeClient {
     /// unpaid one stops counting at the period it failed to pay; one that never paid never counts. Without it (a key
     /// that can't read invoices), the old rule: from the trial's end until it ended.
     static func fact(_ s: [String: Any], firstPaid: [String: Date]? = nil, now: Date = Date()) -> SubFact? {
-        let status = s["status"] as? String ?? ""
+        var status = s["status"] as? String ?? ""
         guard !["incomplete", "incomplete_expired"].contains(status) else { return nil }
         let cus = s["customer"] as? [String: Any]
         guard cus?["deleted"] as? Bool != true else { return nil }
@@ -122,17 +127,28 @@ extension StripeClient {
         // Newer API versions moved the billing period onto the items
         let periodStart = date(s["current_period_start"]) ?? date(items.first?["current_period_start"])
         let periodEnd = date(s["current_period_end"]) ?? date(items.first?["current_period_end"])
-        let trialEnd = date(s["trial_end"])
+        var trialEnd = date(s["trial_end"])
         let started = date(s["start_date"]) ?? date(s["created"]) ?? now
         let endedAt = date(s["ended_at"])
-        let lost = status == "active" && invoiceLost(s["latest_invoice"])
+        var lost = status == "active" && invoiceLost(s["latest_invoice"])
+        // The real MRR is what a paid invoice covers now. Active with nothing paid for the current period: a free
+        // period after a trial (never paid: read as a trial, first charge at the period's end), a renewal not paid
+        // yet (at risk), or a free month for a customer who paid before (out of the MRR for that month).
+        let inv = s["latest_invoice"] as? [String: Any]
+        let periodUnpaid = status == "active" && !lost && inv != nil && (inv?["amount_paid"] as? Int ?? 0) == 0
+        let paidBefore = firstPaid?[id] != nil
+        var freeMonth = false, freePeriod = false
+        if periodUnpaid {
+            if !paidBefore { freePeriod = true; status = "trialing"; trialEnd = periodEnd ?? trialEnd }
+            else if (inv?["amount_due"] as? Int ?? 0) > 0 { lost = true } else { freeMonth = true }
+        }
         var start = max(started, trialEnd ?? started)
         var end: Date?
         if let firstPaid {
             if let from = firstPaid[id] ?? (status == "active" && !lost ? (trialEnd ?? started) : nil) {
                 start = from
                 switch status {
-                case "active" where lost: end = endedAt ?? periodStart ?? now
+                case "active" where lost || freeMonth: end = endedAt ?? periodStart ?? now
                 case "active", "trialing": end = endedAt
                 case "past_due", "unpaid", "paused": end = endedAt ?? periodStart ?? now
                 default: end = endedAt ?? date(s["canceled_at"]) ?? start
@@ -159,6 +175,7 @@ extension StripeClient {
                        trialStart: date(s["trial_start"]), endedAt: endedAt, cancelAtPeriodEnd: s["cancel_at_period_end"] as? Bool == true,
                        cancelReason: (s["cancellation_details"] as? [String: Any])?["reason"] as? String,
                        firstPaid: firstPaid?[id], invoicesRead: firstPaid != nil ? true : nil, lastInvoiceLost: lost ? true : nil,
+                       periodUnpaid: freeMonth ? true : nil, freePeriod: freePeriod ? true : nil,
                        unpaidRecent: status == "unpaid" && (periodStart ?? started) > now.addingTimeInterval(-90 * 86400) ? true : nil)
     }
 

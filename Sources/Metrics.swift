@@ -129,6 +129,7 @@ extension MrrSnapshot {
                 continue
             }
             switch f.status {
+            case "active" where !f.isActive: break
             case "active":
                 add(&s.real, f); s.activeCount += 1
                 if Metrics.isCancelling(f) { add(&s.leaving, f); s.leavingCount += 1 }
